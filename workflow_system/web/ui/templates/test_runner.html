@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+        header { margin-bottom: 2rem; }
+        h1 { color: #00d4ff; margin-bottom: 0.5rem; }
+        .back-link { color: #8892b0; text-decoration: none; }
+        .back-link:hover { color: #00d4ff; }
+
+        .form-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 2rem;
+        }
+        .form-group { margin-bottom: 1.5rem; }
+        label {
+            display: block;
+            color: #8892b0;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        select, input[type="number"] {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        select:focus, input:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: rgba(0,212,255,0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(0,212,255,0.2);
+            display: none;
+        }
+        .results.show { display: block; }
+        .results h3 { color: #00d4ff; margin-bottom: 1rem; }
+        .result-item {
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        .result-item.success { border-left: 3px solid #00ff88; }
+        .result-item.error { border-left: 3px solid #ff4444; }
+
+        .info-box {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #8892b0;
+        }
+        .info-box strong { color: #00d4ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="/" class="back-link">← Back to Dashboard</a>
+            <h1>🧪 Test Runner</h1>
+        </header>
+
+        <div class="form-card">
+            <form id="testForm">
+                <div class="form-group">
+                    <label for="environment">Target Environment</label>
+                    <select id="environment" name="environment">
+                        <option value="Production">Production</option>
+                        <option value="Staging">Staging</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tier">Tier</label>
+                    <select id="tier" name="tier">
+                        <option value="Standard">Standard</option>
+                        <option value="Budget">Budget</option>
+                        <option value="Premium">Premium</option>
+                        <option value="All Tiers (Comparison)">All Tiers (Comparison)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="count">Number of Test Cases (1-50)</label>
+                    <input type="number" id="count" name="count" min="1" max="50" value="5">
+                </div>
+
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="parallel" name="parallel" checked>
+                        <label for="parallel" style="margin: 0;">Run tests in parallel</label>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" id="submitBtn">
+                    🚀 Run Tests
+                </button>
+            </form>
+
+            <div class="info-box" id="infoBox">
+                <strong>Estimated:</strong> <span id="testCount">5</span> test(s) ×
+                <span id="tierCount">1</span> tier(s) = <strong><span id="totalTests">5</span></strong> executions
+            </div>
+        </div>
+
+        <div class="results" id="results">
+            <h3>Test Results</h3>
+            <div id="resultsList"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('testForm');
+        const tierSelect = document.getElementById('tier');
+        const countInput = document.getElementById('count');
+        const infoBox = document.getElementById('infoBox');
+        const results = document.getElementById('results');
+        const resultsList = document.getElementById('resultsList');
+
+        function updateEstimate() {
+            const count = parseInt(countInput.value) || 1;
+            const tierCount = tierSelect.value === 'All Tiers (Comparison)' ? 3 : 1;
+            document.getElementById('testCount').textContent = count;
+            document.getElementById('tierCount').textContent = tierCount;
+            document.getElementById('totalTests').textContent = count * tierCount;
+        }
+
+        tierSelect.addEventListener('change', updateEstimate);
+        countInput.addEventListener('input', updateEstimate);
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.textContent = '⏳ Running Tests...';
+
+            const formData = {
+                environment: document.getElementById('environment').value,
+                tier: document.getElementById('tier').value,
+                count: parseInt(countInput.value),
+                parallel: document.getElementById('parallel').checked,
+            };
+
+            try {
+                const response = await fetch('/api/tests/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+
+                const data = await response.json();
+
+                results.classList.add('show');
+                resultsList.innerHTML = `
+                    <div class="result-item success">
+                        <strong>✅ Tests Initiated</strong><br>
+                        ${data.message}<br>
+                        <small>Tiers: ${data.tiers.join(', ')} | Environment: ${data.environment}</small>
+                    </div>
+                `;
+            } catch (error) {
+                results.classList.add('show');
+                resultsList.innerHTML = `
+                    <div class="result-item error">
+                        <strong>❌ Error</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+            }
+
+            submitBtn.disabled = false;
+            submitBtn.textContent = '🚀 Run Tests';
+        });
+    </script>
+</body>
+</html>

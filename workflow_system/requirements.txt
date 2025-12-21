@@ -1,0 +1,44 @@
+# Core Framework
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# AI Provider
+anthropic>=0.39.0
+
+# Google APIs
+google-api-python-client>=2.108.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+gspread>=5.12.0
+
+# Async Support
+aiohttp>=3.9.0
+asyncio-throttle>=1.0.2
+
+# Background Tasks
+apscheduler>=3.10.4
+
+# Database
+aiosqlite>=0.19.0
+sqlalchemy>=2.0.23
+
+# HTML Templates
+jinja2>=3.1.2
+
+# Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+httpx>=0.25.2  # For testing FastAPI
+
+# Utilities
+tenacity>=8.2.3  # Retry logic
+structlog>=23.2.0  # Structured logging
+rich>=13.7.0  # Beautiful CLI output
+
+# Type Checking (optional)
+mypy>=1.7.0

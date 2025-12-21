@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            text-align: center;
+            padding: 2rem 0;
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: #00d4ff;
+            margin-bottom: 0.5rem;
+        }
+        .card p {
+            color: #8892b0;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .status {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(0,212,255,0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(0,212,255,0.2);
+        }
+        .status h3 { color: #00d4ff; margin-bottom: 0.5rem; }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .status-item {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+        }
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        .status-label { color: #8892b0; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Workflow Automation System</h1>
+            <p class="subtitle">AI-Powered Workflow Proposals with Self-Consistency Voting</p>
+        </header>
+
+        <div class="cards">
+            <div class="card">
+                <h2>🧪 Test Runner</h2>
+                <p>Run automated tests against the workflow engine. Supports parallel tier testing across Budget, Standard, and Premium configurations.</p>
+                <a href="/test-runner" class="btn">Open Test Runner</a>
+            </div>
+
+            <div class="card">
+                <h2>📧 Workflow Processor</h2>
+                <p>Submit a business inquiry and receive AI-generated workflow recommendations with self-consistency voting.</p>
+                <a href="/api/docs#/Workflows" class="btn">API Documentation</a>
+            </div>
+
+            <div class="card">
+                <h2>📊 QA Dashboard</h2>
+                <p>View quality audit results, scores, and recommendations for improving workflow outputs.</p>
+                <a href="/api/docs#/Tests" class="btn">View Tests API</a>
+            </div>
+        </div>
+
+        <div class="status">
+            <h3>System Status</h3>
+            <div class="status-grid">
+                <div class="status-item">
+                    <div class="status-value">✅</div>
+                    <div class="status-label">API Status</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value">50</div>
+                    <div class="status-label">Test Cases</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value">3</div>
+                    <div class="status-label">Tiers Available</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-value">5</div>
+                    <div class="status-label">SC Temperatures</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
