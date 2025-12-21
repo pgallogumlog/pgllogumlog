@@ -1,7 +1,71 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+---
+
 # Workflow System Development Guide
 
 ## Identity
 You are the orchestrating agent for a workflow automation system that generates AI-powered business workflow recommendations. You coordinate development of the complete system including backend processing, frontend user interface, payment integration, and delivery mechanisms.
+
+## Current Implementation Status
+
+### ✅ Implemented
+- Core workflow engine with consensus voting (multi-temperature)
+- QA system with deterministic and probabilistic validators
+- Test orchestration framework with 44+ tests
+- FastAPI web application with REST endpoints
+- Claude API integration with call capture
+- Google Sheets integration for QA logging
+- Gmail integration for email delivery
+- Structured logging with structlog
+- Dependency injection container
+- Background email polling service
+
+### 🚧 Planned/Future
+- Stripe payment processing integration
+- Playwright e2e tests
+- User submission form with payment flow
+- Production deployment configuration
+
+## Architecture Overview
+
+### Key Architectural Patterns
+
+**1. Domain-Driven Design (Contexts)**
+- `contexts/workflow/` - Core business logic for workflow generation
+- `contexts/qa/` - Quality assurance and validation logic
+- `contexts/testing/` - Test orchestration and execution
+- Each context is self-contained with its own models and logic
+
+**2. Hexagonal Architecture (Ports & Adapters)**
+- `infrastructure/` contains adapters for external services:
+  - `ai/` - Claude API client and QA-instrumented wrapper
+  - `storage/` - Google Sheets persistence
+  - `email/` - Gmail delivery
+- Business logic (contexts) depends on interfaces, not implementations
+- Dependency injection enables swapping implementations (e.g., MockAIProvider for tests)
+
+**3. Multi-Temperature Consensus Voting**
+- Core innovation: Run same prompt at different temperatures (0.4, 0.6, 0.8, 1.0, 1.2)
+- Voter (`contexts/workflow/voter.py`) analyzes outputs for consensus
+- Improves reliability by detecting hallucinations and inconsistencies
+- Configurable via `SC_TEMPERATURES` and `SC_MIN_CONSENSUS_VOTES` env vars
+
+**4. QA Capture & Validation Pipeline**
+- `CapturingAIAdapter` wraps `ClaudeAdapter` to intercept all AI calls
+- Captured data flows through validation pipeline:
+  - Deterministic validators (response time, token count, format)
+  - Probabilistic validators (semantic quality using AI)
+  - Auditor assigns final quality score (1-10)
+- Results logged to Google Sheets for analysis
+- Enable with `--qa` flag on test runners
+
+**5. Dependency Injection**
+- `config/dependency_injection.py` provides central service container
+- Enables testing with mock services (see `tests/conftest.py`)
+- Services lazy-loaded on first access
 
 ## Project Overview
 This system allows users to:
@@ -11,66 +75,82 @@ This system allows users to:
 4. Receive results via email or direct download
 
 ## Tech Stack
-**Backend**: Python 3.9+, FastAPI, Pydantic, structlog, pytest
+**Backend**: Python 3.11+ (pyproject.toml requirement; currently 3.9+ compatible), FastAPI, Pydantic, structlog, pytest
 **Frontend**: HTML5, CSS3, JavaScript ES6+, Jinja2 templates
 **AI**: Claude API (Anthropic), multi-temperature consensus voting
 **Storage**: Google Sheets API for logging and results
-**Payments**: Stripe API for payment processing
+**Payments**: Stripe API for payment processing (planned/future)
 **Email**: Gmail API for delivery
-**Testing**: pytest (unit/integration), Playwright (e2e)
+**Testing**: pytest (unit/integration), Playwright (e2e, planned)
 
 ## Project Structure
 ```
 learnClaude/
 ├── CLAUDE.md                    # This file - development guide
-├── workflow_system/
-│   ├── config/
-│   │   ├── settings.py          # Environment configuration
-│   │   └── dependency_injection.py  # Service container
-│   ├── contexts/
-│   │   ├── workflow/            # Core workflow engine
-│   │   │   ├── engine.py        # Main orchestrator
-│   │   │   ├── models.py        # Domain models
-│   │   │   ├── prompts.py       # AI prompt templates
-│   │   │   └── voter.py         # Consensus voting
-│   │   ├── qa/                  # Quality assurance
-│   │   │   ├── auditor.py       # Semantic QA
-│   │   │   ├── call_capture.py  # AI call instrumentation
-│   │   │   ├── scoring.py       # Validation pipeline
-│   │   │   └── validators/      # Deterministic & probabilistic
-│   │   └── testing/             # Test orchestration
-│   │       ├── orchestrator.py  # Test runner
-│   │       └── test_cases.py    # Test data
-│   ├── infrastructure/
-│   │   ├── ai/
-│   │   │   ├── claude_adapter.py      # Claude API client
-│   │   │   └── capturing_adapter.py   # QA instrumentation wrapper
-│   │   ├── email/
-│   │   │   └── gmail_adapter.py       # Gmail integration
-│   │   └── storage/
-│   │       └── sheets_adapter.py      # Google Sheets client
-│   ├── web/
-│   │   ├── app.py               # FastAPI application
-│   │   ├── api/                 # REST endpoints
-│   │   │   ├── health.py
-│   │   │   ├── workflows.py
-│   │   │   └── tests.py
-│   │   └── ui/
-│   │       ├── templates/       # Jinja2 HTML templates
-│   │       └── static/          # CSS, JS, images
-│   ├── tests/
-│   │   ├── conftest.py          # Pytest fixtures, MockAIProvider
-│   │   ├── unit/                # Unit tests
-│   │   └── integration/         # Integration tests
-│   ├── run_test.py              # CLI test runner
-│   └── requirements.txt
-└── .env                         # Environment variables (git-ignored)
+├── main.py                      # PyCharm template (not used)
+└── workflow_system/             # Main application directory
+    ├── .env                     # Environment variables (git-ignored)
+    ├── .env.example             # Environment template
+    ├── pyproject.toml           # Project config, pytest, mypy, ruff settings
+    ├── requirements.txt         # Python dependencies
+    ├── main.py                  # Application entry point
+    ├── run_test.py              # CLI test runner
+    ├── run_qa_test.py           # QA-enabled test runner
+    ├── authorize_sheets.py      # Google Sheets OAuth setup
+    ├── config/
+    │   ├── settings.py          # Environment configuration
+    │   └── dependency_injection.py  # Service container
+    ├── contexts/
+    │   ├── workflow/            # Core workflow engine
+    │   │   ├── engine.py        # Main orchestrator
+    │   │   ├── models.py        # Domain models
+    │   │   ├── prompts.py       # AI prompt templates
+    │   │   └── voter.py         # Consensus voting
+    │   ├── qa/                  # Quality assurance
+    │   │   ├── auditor.py       # Semantic QA
+    │   │   ├── call_capture.py  # AI call instrumentation
+    │   │   ├── scoring.py       # Validation pipeline
+    │   │   ├── sheets_logger.py # Log QA results to Sheets
+    │   │   └── validators/      # Deterministic & probabilistic
+    │   └── testing/             # Test orchestration
+    │       ├── orchestrator.py  # Test runner
+    │       ├── test_cases.py    # Test data
+    │       └── models.py        # Test domain models
+    ├── infrastructure/
+    │   ├── ai/
+    │   │   ├── claude_adapter.py      # Claude API client
+    │   │   └── capturing_adapter.py   # QA instrumentation wrapper
+    │   ├── email/
+    │   │   └── gmail_adapter.py       # Gmail integration
+    │   └── storage/
+    │       └── sheets_adapter.py      # Google Sheets client
+    ├── background/
+    │   └── email_poller.py      # Background email polling service
+    ├── shared/
+    │   └── utils.py             # Common utility functions
+    ├── data/
+    │   └── test_cases/          # Test case storage
+    ├── web/
+    │   ├── app.py               # FastAPI application
+    │   ├── api/                 # REST endpoints
+    │   │   ├── health.py        # Health check endpoints
+    │   │   ├── workflows.py     # Workflow execution endpoints
+    │   │   └── tests.py         # Test runner endpoints
+    │   └── ui/
+    │       ├── templates/       # Jinja2 HTML templates
+    │       └── static/          # CSS, JS, images
+    └── tests/
+        ├── conftest.py          # Pytest fixtures, MockAIProvider
+        ├── unit/                # Unit tests
+        │   └── contexts/        # Context-specific unit tests
+        └── integration/         # Integration tests
+            └── test_api.py      # API integration tests
 ```
 
 ## MCP Server Configuration
 
 ### Required MCP Servers
-Create `.mcp.json` in project root:
+**Note**: The `.mcp.json` file does not currently exist. Create it in the project root when needed:
 ```json
 {
   "mcpServers": {
@@ -118,7 +198,8 @@ Use for iterative frontend development:
 5. Fix issues and screenshot again
 6. Repeat until visual matches expectations
 
-#### Stripe - Payment Integration
+#### Stripe - Payment Integration (Future/Planned)
+**Note**: Stripe integration is not yet implemented. When implemented, use for:
 ```
 "Create a Stripe checkout session for $29.99 premium tier"
 "List recent payments for customer email"
@@ -180,9 +261,14 @@ class TestFeatureClass:
 ```
 
 ### Test Commands
+**Note**: All test commands should be run from the `workflow_system/` directory.
+
 ```bash
+# Navigate to workflow_system directory first
+cd workflow_system
+
 # Run all tests
-cd workflow_system && python -m pytest tests/ -v
+python -m pytest tests/ -v
 
 # Run specific test file
 python -m pytest tests/unit/contexts/test_workflow_engine.py -v
@@ -199,8 +285,11 @@ python -m pytest tests/ -k "test_payment" -v
 # Run integration tests only
 python -m pytest tests/integration/ -v
 
-# Run with QA capture
+# Run with QA capture (uses CLI test runner)
 python run_test.py --qa --tier standard --count 1
+
+# Run QA tests with mock AI provider (no API calls)
+python run_test.py --qa --mock --tier standard
 ```
 
 ## Production Readiness Checklist
@@ -302,6 +391,8 @@ Phase 4: Polish
 
 ## Frontend Development Guide
 
+**Note**: The payment integration described below is planned for future implementation.
+
 ### User Submission Form Requirements
 The form must collect:
 1. **Business Information**
@@ -402,58 +493,87 @@ async function handleSubmit(event) {
 
 ## Commands Reference
 
+**Note**: All commands below should be run from the `workflow_system/` directory unless otherwise specified.
+
 ### Development
 ```bash
-# Start development server
+# Navigate to workflow_system directory
 cd workflow_system
+
+# Start development server (from workflow_system/)
 uvicorn web.app:app --reload --host 0.0.0.0 --port 8000
 
-# Run tests
+# Run all tests (from workflow_system/)
 python -m pytest tests/ -v
 
-# Run with QA capture
+# Run with QA capture (from workflow_system/)
 python run_test.py --qa --tier standard
 
-# Format code
+# Format code (from project root: learnClaude/)
+cd ..
+python -m black workflow_system/
+
+# Or format from workflow_system/
 python -m black .
 
-# Type checking
+# Type checking (from workflow_system/)
 python -m mypy contexts/ infrastructure/ web/
+
+# Set up Google Sheets OAuth (one-time setup)
+python authorize_sheets.py
 ```
 
 ### Production
 ```bash
-# Start production server
+# Start production server (from workflow_system/)
 uvicorn web.app:app --host 0.0.0.0 --port 8000 --workers 4
 
-# Run with gunicorn
+# Run with gunicorn (from workflow_system/)
 gunicorn web.app:app -w 4 -k uvicorn.workers.UvicornWorker
 ```
 
 ## Environment Variables
-Required in `.env`:
-```
-# AI
-ANTHROPIC_API_KEY=sk-ant-...
+Required in `workflow_system/.env` (see `.env.example` for full template):
 
-# Google
-GOOGLE_SHEETS_CREDENTIALS_PATH=config/google_credentials.json
-GOOGLE_SHEETS_QA_LOG_ID=spreadsheet_id_here
+```bash
+# AI Provider (Required)
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxx
 
-# Stripe
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
+# Google Credentials (Required for Sheets/Gmail)
+GOOGLE_CREDENTIALS_FILE=config/google_credentials.json
+GMAIL_USER_EMAIL=your-email@gmail.com
+GOOGLE_SHEETS_QA_LOG_ID=your-spreadsheet-id
+GOOGLE_SHEETS_CONFIG_ID=your-config-spreadsheet-id
 
-# Email
-GMAIL_CREDENTIALS_PATH=config/gmail_credentials.json
+# Application Settings
+APP_ENV=development
+APP_DEBUG=true
+APP_HOST=127.0.0.1
+APP_PORT=8000
+
+# Database
+DATABASE_URL=sqlite+aiosqlite:///data/workflow_system.db
+
+# Workflow Settings (Self-Consistency Engine)
+SC_TEMPERATURES=0.4,0.6,0.8,1.0,1.2
+SC_MIN_CONSENSUS_VOTES=2
+SC_MODEL=claude-sonnet-4-20250514
+
+# QA Auditor Settings
+QA_MODEL=claude-sonnet-4-20250514
+QA_MIN_PASS_SCORE=7
+
+# Stripe (Future/Planned - Not yet implemented)
+# STRIPE_SECRET_KEY=sk_test_...
+# STRIPE_PUBLISHABLE_KEY=pk_test_...
+# STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
 ## Quality Gates
 
 ### Before ANY Commit
-- [ ] All tests pass: `python -m pytest tests/ -v`
-- [ ] Code formatted: `python -m black --check .`
+- [ ] All tests pass: `cd workflow_system && python -m pytest tests/ -v`
+- [ ] Code formatted: `python -m black --check workflow_system/`
 - [ ] No secrets in code
 - [ ] Descriptive commit message
 
@@ -561,7 +681,7 @@ config/google_credentials.json # Google API credentials
 ```
 
 ### Pre-Commit Checklist
-Before every commit:
+Before every commit (run from project root: `learnClaude/`):
 ```bash
 # 1. Check what's staged
 git status
@@ -570,11 +690,13 @@ git diff --staged
 # 2. Verify no secrets
 git diff --staged | grep -i "api_key\|secret\|password\|credential"
 
-# 3. Run tests
-cd workflow_system && python -m pytest tests/ -v
+# 3. Run tests (from workflow_system/)
+cd workflow_system
+python -m pytest tests/ -v
+cd ..
 
-# 4. Format code
-python -m black .
+# 4. Format code (from project root)
+python -m black workflow_system/
 
 # 5. Commit with good message
 git commit -m "type(scope): description"
