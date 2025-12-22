@@ -44,6 +44,8 @@ class TestOrchestrator:
         ai_provider: AIProvider,
         sheets_client: Optional[SheetsClient] = None,
         qa_spreadsheet_id: Optional[str] = None,
+        email_client=None,
+        send_emails: bool = False,
     ):
         """
         Initialize the test orchestrator.
@@ -52,10 +54,14 @@ class TestOrchestrator:
             ai_provider: AI provider for workflow engine
             sheets_client: Optional sheets client for logging
             qa_spreadsheet_id: Optional spreadsheet ID for QA logs
+            email_client: Optional email client for sending proposals
+            send_emails: Whether to send proposal emails after processing
         """
         self._ai = ai_provider
         self._sheets = sheets_client
         self._qa_spreadsheet_id = qa_spreadsheet_id
+        self._email_client = email_client
+        self._send_emails = send_emails
 
     async def run_tests(self, config: TestConfig) -> TestSuiteResult:
         """
@@ -282,6 +288,35 @@ class TestOrchestrator:
                 qa_score=qa_score,
                 duration=f"{duration:.1f}s",
             )
+
+            # Send proposal email if configured
+            if self._send_emails and self._email_client:
+                try:
+                    email_sent = await self._email_client.send(
+                        to=inquiry.from_email,
+                        subject=workflow_result.proposal.subject,
+                        body=workflow_result.proposal.html_body,
+                        html=True,
+                    )
+                    if email_sent:
+                        logger.info(
+                            "proposal_email_sent",
+                            to=inquiry.from_email,
+                            run_id=workflow_result.run_id,
+                        )
+                    else:
+                        logger.warning(
+                            "proposal_email_send_failed",
+                            to=inquiry.from_email,
+                            run_id=workflow_result.run_id,
+                        )
+                except Exception as e:
+                    logger.error(
+                        "proposal_email_error",
+                        to=inquiry.from_email,
+                        run_id=workflow_result.run_id,
+                        error=str(e),
+                    )
 
             return result
 

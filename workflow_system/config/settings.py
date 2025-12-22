@@ -40,6 +40,16 @@ class Settings(BaseSettings):
     gmail_poll_interval_seconds: int = Field(default=60, description="Email poll interval")
 
     # ===================
+    # SMTP Email Settings
+    # ===================
+    smtp_host: str = Field(default="smtp.gmail.com", description="SMTP server hostname")
+    smtp_port: int = Field(default=587, description="SMTP server port (587 for TLS, 465 for SSL)")
+    smtp_user: str = Field(default="", description="SMTP username (usually your email)")
+    smtp_password: str = Field(default="", description="SMTP password (Gmail App Password)")
+    smtp_from_email: str = Field(default="", description="From email address (defaults to smtp_user)")
+    smtp_use_tls: bool = Field(default=True, description="Use TLS (True for port 587)")
+
+    # ===================
     # Google Sheets
     # ===================
     google_sheets_qa_log_id: str = Field(default="", description="QA Logs spreadsheet ID")

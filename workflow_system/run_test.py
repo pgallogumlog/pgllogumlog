@@ -7,6 +7,8 @@ Usage:
     python run_test.py --qa --mock        # With QA capture using mock AI
     python run_test.py --tier standard    # Single tier only
     python run_test.py --count 3          # Run 3 test cases
+    python run_test.py --send-emails      # Send proposal emails after processing
+    python run_test.py --no-emails        # Disable email sending (default)
 """
 
 import asyncio
@@ -22,6 +24,7 @@ def parse_args():
     args = {
         "enable_qa": "--qa" in sys.argv,
         "use_mock": "--mock" in sys.argv,
+        "send_emails": "--send-emails" in sys.argv,
         "tier": Tier.ALL,
         "count": 1,
     }
@@ -53,7 +56,7 @@ def parse_args():
 
 
 async def run_one_test(enable_qa: bool = False, use_mock: bool = False,
-                       tier: Tier = Tier.ALL, count: int = 1):
+                       tier: Tier = Tier.ALL, count: int = 1, send_emails: bool = False):
     container = get_container()
     settings = container.settings
 
@@ -64,6 +67,7 @@ async def run_one_test(enable_qa: bool = False, use_mock: bool = False,
     print(f"Test Cases: {count}")
     print(f"QA Capture: {'ENABLED' if enable_qa else 'DISABLED'}")
     print(f"AI Provider: {'MOCK' if use_mock else 'REAL (Claude API)'}")
+    print(f"Send Emails: {'ENABLED' if send_emails else 'DISABLED'}")
     print("=" * 60)
 
     # Choose AI provider based on flags
@@ -108,6 +112,8 @@ async def run_one_test(enable_qa: bool = False, use_mock: bool = False,
         ai_provider=ai_provider,
         sheets_client=container.sheets_client() if not use_mock else None,
         qa_spreadsheet_id=settings.google_sheets_qa_log_id if not use_mock else None,
+        email_client=container.email_client() if send_emails and not use_mock else None,
+        send_emails=send_emails,
     )
 
     config = TestConfig(
@@ -188,5 +194,6 @@ if __name__ == "__main__":
         use_mock=args["use_mock"],
         tier=args["tier"],
         count=args["count"],
+        send_emails=args["send_emails"],
     ))
 

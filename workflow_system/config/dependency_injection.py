@@ -232,11 +232,15 @@ class Container:
         if "email_client" in self._overrides:
             return self._overrides["email_client"]
 
-        from infrastructure.email.gmail_adapter import GmailAdapter
+        from infrastructure.email.smtp_adapter import SMTPAdapter
 
-        return GmailAdapter(
-            credentials_file=self._settings.google_credentials_file,
-            user_email=self._settings.gmail_user_email,
+        return SMTPAdapter(
+            smtp_host=self._settings.smtp_host,
+            smtp_port=self._settings.smtp_port,
+            smtp_user=self._settings.smtp_user,
+            smtp_password=self._settings.smtp_password,
+            from_email=self._settings.smtp_from_email or self._settings.smtp_user,
+            use_tls=self._settings.smtp_use_tls,
         )
 
     def sheets_client(self) -> SheetsClient:

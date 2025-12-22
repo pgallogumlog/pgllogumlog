@@ -9,11 +9,14 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+import structlog
+
 from config import get_container
 from contexts.workflow import WorkflowEngine
 from contexts.workflow.models import EmailInquiry
 from contexts.qa import QAAuditor
 
+logger = structlog.get_logger()
 router = APIRouter()
 
 
@@ -25,6 +28,7 @@ class WorkflowRequest(BaseModel):
     client_email: str = "api@example.com"
     tier: str = "Standard"
     run_qa: bool = True
+    send_email: bool = False
 
 
 class WorkflowResponse(BaseModel):
@@ -100,6 +104,36 @@ async def process_workflow(request: WorkflowRequest):
             qa_result = await qa_auditor.audit(result)
             response.qa_score = qa_result.score
             response.qa_passed = qa_result.passed
+
+        # Send email if requested
+        if request.send_email:
+            try:
+                email_client = container.email_client()
+                email_sent = await email_client.send(
+                    to=request.client_email,
+                    subject=result.proposal.subject,
+                    body=result.proposal.html_body,
+                    html=True,
+                )
+                if email_sent:
+                    logger.info(
+                        "proposal_email_sent",
+                        to=request.client_email,
+                        run_id=result.run_id,
+                    )
+                else:
+                    logger.warning(
+                        "proposal_email_send_failed",
+                        to=request.client_email,
+                        run_id=result.run_id,
+                    )
+            except Exception as e:
+                logger.error(
+                    "proposal_email_error",
+                    to=request.client_email,
+                    run_id=result.run_id,
+                    error=str(e),
+                )
 
         return response
 
