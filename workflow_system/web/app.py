@@ -17,6 +17,7 @@ from config import get_container, get_settings
 from web.api.health import router as health_router
 from web.api.tests import router as tests_router
 from web.api.workflows import router as workflows_router
+from web.api.qa_dashboard import router as qa_dashboard_router
 
 logger = structlog.get_logger()
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api", tags=["Health"])
     app.include_router(workflows_router, prefix="/api/workflows", tags=["Workflows"])
     app.include_router(tests_router, prefix="/api/tests", tags=["Tests"])
+    app.include_router(qa_dashboard_router)
 
     # Static files and templates
     app.mount("/static", StaticFiles(directory="web/ui/static"), name="static")
@@ -79,6 +81,14 @@ def create_app() -> FastAPI:
         return templates.TemplateResponse(
             "test_runner.html",
             {"request": request, "title": "Test Runner"},
+        )
+
+    @app.get("/qa-dashboard", response_class=HTMLResponse)
+    async def qa_dashboard_ui(request: Request):
+        """QA Dashboard UI page."""
+        return templates.TemplateResponse(
+            "qa_dashboard.html",
+            {"request": request, "title": "QA Dashboard"},
         )
 
     return app

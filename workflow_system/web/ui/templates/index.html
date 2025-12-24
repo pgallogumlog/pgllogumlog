@@ -95,6 +95,26 @@
             color: #00d4ff;
         }
         .status-label { color: #8892b0; font-size: 0.85rem; }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.5rem;
+            background: rgba(255,170,0,0.2);
+            color: #ffaa00;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 0.5rem;
+        }
+        .btn-disabled {
+            display: inline-block;
+            padding: 0.75rem 1.5rem;
+            background: rgba(255,255,255,0.1);
+            color: #8892b0;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -112,15 +132,15 @@
             </div>
 
             <div class="card">
-                <h2>📧 Workflow Processor</h2>
+                <h2>📧 Workflow Processor <span class="badge">Coming Soon</span></h2>
                 <p>Submit a business inquiry and receive AI-generated workflow recommendations with self-consistency voting.</p>
-                <a href="/api/docs#/Workflows" class="btn">API Documentation</a>
+                <span class="btn-disabled">Coming Soon</span>
             </div>
 
             <div class="card">
                 <h2>📊 QA Dashboard</h2>
                 <p>View quality audit results, scores, and recommendations for improving workflow outputs.</p>
-                <a href="/api/docs#/Tests" class="btn">View Tests API</a>
+                <a href="/qa-dashboard" class="btn">Open QA Dashboard</a>
             </div>
         </div>
 

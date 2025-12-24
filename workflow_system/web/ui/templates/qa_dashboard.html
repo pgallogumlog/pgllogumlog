@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QA Dashboard - Workflow System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 2rem;
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header { margin-bottom: 2rem; }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle { color: #8892b0; font-size: 1.1rem; }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: #8892b0;
+            text-decoration: none;
+        }
+        .back-link:hover { color: #00d4ff; }
+
+        /* Date Range Filters */
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .filter-btn {
+            padding: 0.75rem 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            color: #00d4ff;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .filter-btn:hover { background: rgba(0, 212, 255, 0.1); }
+
+        .filter-btn.active {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            transition: transform 0.2s;
+        }
+
+        .metric-card:hover { transform: translateY(-4px); }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: #8892b0;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2rem;
+            border-radius: 12px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            margin-bottom: 2rem;
+        }
+
+        .chart-container h2 {
+            color: #00d4ff;
+            margin-bottom: 1.5rem;
+            font-size: 1.5rem;
+        }
+
+        /* Loading & Error States */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #00d4ff;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid #ff4444;
+            padding: 1rem;
+            border-radius: 8px;
+            color: #ff4444;
+        }
+
+        @media (max-width: 768px) {
+            .filters { flex-wrap: wrap; }
+            .metrics-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <a href="/" class="back-link">&larr; Back to Dashboard</a>
+            <h1>QA Dashboard</h1>
+            <p class="subtitle">Quality Assurance Metrics and Trends</p>
+        </header>
+
+        <!-- Date Range Filters -->
+        <div class="filters">
+            <button class="filter-btn" data-range="7d">Last 7 Days</button>
+            <button class="filter-btn active" data-range="30d">Last 30 Days</button>
+            <button class="filter-btn" data-range="90d">Last 90 Days</button>
+            <button class="filter-btn" data-range="all">All Time</button>
+        </div>
+
+        <!-- Overview Metrics -->
+        <div id="metrics-container" class="metrics-grid">
+            <div class="loading">Loading metrics...</div>
+        </div>
+
+        <!-- Score Trends Chart -->
+        <div class="chart-container">
+            <h2>Score Trends</h2>
+            <canvas id="trends-chart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentRange = '30d';
+        let trendsChart = null;
+
+        // DOM Elements
+        const metricsContainer = document.getElementById('metrics-container');
+        const filterBtns = document.querySelectorAll('.filter-btn');
+
+        // Event Listeners
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentRange = btn.dataset.range;
+                loadDashboard();
+            });
+        });
+
+        // API Calls
+        async function loadDashboard() {
+            await Promise.all([
+                loadOverview(),
+                loadTrends()
+            ]);
+        }
+
+        async function loadOverview() {
+            try {
+                const response = await fetch(`/api/v1/qa-dashboard/overview?date_range=${currentRange}`);
+                if (!response.ok) throw new Error('Failed to fetch overview');
+
+                const data = await response.json();
+                renderMetrics(data);
+            } catch (error) {
+                metricsContainer.innerHTML = `<div class="error">Error loading metrics: ${error.message}</div>`;
+            }
+        }
+
+        async function loadTrends() {
+            try {
+                const days = getDaysFromRange(currentRange);
+                const response = await fetch(`/api/v1/qa-dashboard/trends?days=${days}`);
+                if (!response.ok) throw new Error('Failed to fetch trends');
+
+                const data = await response.json();
+                renderTrendsChart(data);
+            } catch (error) {
+                console.error('Error loading trends:', error);
+            }
+        }
+
+        // Rendering Functions
+        function renderMetrics(data) {
+            metricsContainer.innerHTML = `
+                <div class="metric-card">
+                    <div class="metric-label">Total Runs</div>
+                    <div class="metric-value">${data.total_runs}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Pass Rate</div>
+                    <div class="metric-value">${(data.pass_rate * 100).toFixed(1)}%</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Score</div>
+                    <div class="metric-value">${data.avg_score.toFixed(2)}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Total Calls</div>
+                    <div class="metric-value">${data.total_calls}</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Avg Calls/Run</div>
+                    <div class="metric-value">${data.avg_calls_per_run.toFixed(1)}</div>
+                </div>
+            `;
+        }
+
+        function renderTrendsChart(data) {
+            const ctx = document.getElementById('trends-chart').getContext('2d');
+
+            if (trendsChart) {
+                trendsChart.destroy();
+            }
+
+            trendsChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.dates.map(d => new Date(d).toLocaleDateString()),
+                    datasets: [{
+                        label: 'Average Score',
+                        data: data.values,
+                        borderColor: '#00d4ff',
+                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#fff', font: { size: 14 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                afterLabel: function(context) {
+                                    const index = context.dataIndex;
+                                    return `Runs: ${data.counts[index]}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 10,
+                            ticks: { color: '#fff', font: { size: 12 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        },
+                        x: {
+                            ticks: { color: '#fff', font: { size: 12 } },
+                            grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function getDaysFromRange(range) {
+            const map = { '7d': 7, '30d': 30, '90d': 90, 'all': 90 };
+            return map[range] || 30;
+        }
+
+        // Initial Load
+        loadDashboard();
+
+        // Auto-refresh every 30 seconds
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>
