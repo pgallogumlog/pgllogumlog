@@ -36,7 +36,7 @@ class QASheetsLogger:
         self,
         sheets_client: SheetsClient,
         spreadsheet_id: str,
-        call_log_sheet: str = "QA Logs",
+        call_log_sheet: str = "AI Call Log",
         summary_sheet: str = "QA Logs",
     ):
         """
@@ -122,6 +122,9 @@ class QASheetsLogger:
         """
         Log workflow-level QA summary to the summary sheet.
 
+        When semantic_result is provided, uses 7-column semantic format
+        (the most important metric). Otherwise falls back to call-level format.
+
         Args:
             call_store: Store containing all captured AI calls
             client_name: Name of the client
@@ -132,7 +135,30 @@ class QASheetsLogger:
             True if logging succeeded
         """
         try:
-            # Score the workflow
+            # If we have a semantic result, use it as primary (7-column format)
+            if semantic_result:
+                semantic_result.run_id = call_store.run_id
+                semantic_result.client_name = client_name
+                row = semantic_result.to_sheets_row()
+
+                success = await self._sheets.append_row(
+                    spreadsheet_id=self._spreadsheet_id,
+                    sheet_name=self._summary_sheet,
+                    values=row,
+                )
+
+                if success:
+                    logger.info(
+                        "qa_workflow_summary_logged",
+                        run_id=call_store.run_id,
+                        score=semantic_result.score,
+                        passed=semantic_result.passed,
+                        total_calls=len(call_store.calls),
+                    )
+
+                return success
+
+            # Fall back to call-level scoring if no semantic result
             scorer = WorkflowScorer()
             result = scorer.score(call_store, semantic_result)
             result.client_name = client_name
@@ -180,10 +206,10 @@ class QASheetsLogger:
         semantic_result: Optional[QAResult] = None,
     ) -> tuple[int, bool]:
         """
-        Log all calls and workflow summary.
+        Log workflow summary to QA Logs sheet.
 
-        Convenience method that logs all individual calls and
-        then logs the workflow summary.
+        Note: Per-call logging (AI Call Log) has been removed to reduce
+        Sheets API writes. Only the semantic audit summary is logged.
 
         Args:
             call_store: Store containing all captured AI calls
@@ -191,19 +217,16 @@ class QASheetsLogger:
             semantic_result: Optional semantic QA result
 
         Returns:
-            Tuple of (calls_logged, summary_logged)
+            Tuple of (calls_logged, summary_logged) - calls_logged always 0
         """
-        # Log all calls
-        calls_logged = await self.log_all_calls(call_store.calls)
-
-        # Log summary
+        # Log summary only (per-call logging removed)
         summary_logged = await self.log_workflow_summary(
             call_store=call_store,
             client_name=client_name,
             semantic_result=semantic_result,
         )
 
-        return calls_logged, summary_logged
+        return 0, summary_logged
 
     def _extract_top_issues(self, call_store: AICallStore) -> list[str]:
         """Extract top issues from failed calls."""

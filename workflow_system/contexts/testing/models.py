@@ -76,8 +76,9 @@ class TestResult:
     phase_count: int = 0
     consensus_strength: str = ""
     confidence_percent: int = 0
-    qa_score: int | None = None
-    qa_passed: bool | None = None
+    qa_score: int | None = None  # Semantic audit score (primary metric)
+    qa_passed: bool | None = None  # Semantic audit passed
+    qa_failure_reason: str | None = None  # Root cause from semantic audit
     error_message: str | None = None
     duration_seconds: float = 0.0
     timestamp: datetime = field(default_factory=datetime.now)
@@ -97,6 +98,7 @@ class TestResult:
             "confidence_percent": self.confidence_percent,
             "qa_score": self.qa_score,
             "qa_passed": self.qa_passed,
+            "qa_failure_reason": self.qa_failure_reason,
             "error_message": self.error_message,
             "duration_seconds": self.duration_seconds,
             "timestamp": self.timestamp.isoformat(),

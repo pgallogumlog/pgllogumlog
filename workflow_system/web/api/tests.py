@@ -106,11 +106,32 @@ async def run_tests(
     tiers = config.tiers_to_run
     total_tests = request.count * len(tiers)
 
+    # Generate run_id for QA capture
+    import uuid
+    run_id = str(uuid.uuid4())[:8]
+
+    # Get capturing AI provider for QA
+    ai_provider = container.capturing_ai_provider(
+        run_id=run_id,
+        run_probabilistic=False,  # Deterministic only for speed
+    )
+
+    # Get sheets client and QA spreadsheet ID for logging
+    sheets_client = None
+    qa_spreadsheet_id = container.settings.google_sheets_qa_log_id
+    if qa_spreadsheet_id:
+        try:
+            sheets_client = container.sheets_client()
+        except Exception:
+            pass  # Sheets logging is optional
+
     # Add background task
     background_tasks.add_task(
         _run_tests_background,
         config=config,
-        ai_provider=container.ai_provider(),
+        ai_provider=ai_provider,
+        sheets_client=sheets_client,
+        qa_spreadsheet_id=qa_spreadsheet_id,
     )
 
     return TestRunResponse(
@@ -121,11 +142,24 @@ async def run_tests(
     )
 
 
-async def _run_tests_background(config: TestConfig, ai_provider):
+async def _run_tests_background(
+    config: TestConfig,
+    ai_provider,
+    sheets_client=None,
+    qa_spreadsheet_id=None,
+):
     """Run tests in the background."""
-    orchestrator = TestOrchestrator(ai_provider=ai_provider)
+    orchestrator = TestOrchestrator(
+        ai_provider=ai_provider,
+        sheets_client=sheets_client,
+        qa_spreadsheet_id=qa_spreadsheet_id,
+    )
     result = await orchestrator.run_tests(config)
-    # Results are logged to console/sheets
+
+    # Log test results to sheets
+    if sheets_client and qa_spreadsheet_id:
+        await orchestrator.log_results_to_sheets(result)
+
     return result
 
 

@@ -228,13 +228,22 @@ class TestOrchestrator:
                 tier=tier,
             )
 
-            # Get QA from engine if available, otherwise run separate audit
+            # Get semantic audit from engine if available (primary metric)
             qa_score = None
             qa_passed = None
             qa_severity = None
+            qa_failure_reason = None
 
-            if qa_result_from_engine:
-                # Use QA result from capturing adapter
+            if qa_result_from_engine and qa_result_from_engine.semantic_result:
+                # Use semantic result as primary metric (most important)
+                semantic = qa_result_from_engine.semantic_result
+                qa_score = semantic.score
+                qa_passed = semantic.passed
+                qa_severity = semantic.severity.value
+                if not semantic.passed:
+                    qa_failure_reason = semantic.root_cause
+            elif qa_result_from_engine:
+                # Fall back to call-level score if no semantic result
                 qa_score = qa_result_from_engine.overall_score
                 qa_passed = qa_result_from_engine.passed
                 qa_severity = qa_result_from_engine.worst_severity.value
@@ -249,6 +258,8 @@ class TestOrchestrator:
                 qa_score = qa_result.score
                 qa_passed = qa_result.passed
                 qa_severity = qa_result.severity.value
+                if not qa_result.passed:
+                    qa_failure_reason = qa_result.root_cause
 
                 # Log QA result to sheets
                 await qa_auditor.log_to_sheets(qa_result)
@@ -264,11 +275,14 @@ class TestOrchestrator:
 
             duration = time.time() - start_time
 
+            # Success is based on semantic audit if available, else workflow completion
+            test_success = qa_passed if qa_passed is not None else True
+
             result = TestResult(
                 test_case=test_case,
                 tier=tier,
                 environment=environment,
-                success=True,
+                success=test_success,
                 run_id=workflow_result.run_id,
                 workflow_count=len(workflow_result.consensus.all_workflows),
                 phase_count=len(workflow_result.proposal.phases),
@@ -277,13 +291,14 @@ class TestOrchestrator:
                 duration_seconds=duration,
                 qa_score=qa_score,
                 qa_passed=qa_passed,
+                qa_failure_reason=qa_failure_reason,
             )
 
             logger.info(
                 "test_case_complete",
                 company=test_case.company,
                 tier=tier,
-                success=True,
+                success=test_success,
                 consensus=workflow_result.consensus.consensus_strength,
                 qa_score=qa_score,
                 duration=f"{duration:.1f}s",
@@ -365,12 +380,16 @@ class TestOrchestrator:
                 secs = int(result.duration_seconds % 60)
                 duration_formatted = f"{mins}m {secs}s"
 
-                # Build notes column
+                # Build notes column with semantic audit result (primary metric)
                 if result.error_message:
                     notes = result.error_message
                 elif result.qa_score is not None:
                     qa_status = "PASS" if result.qa_passed else "FAIL"
-                    notes = f"QA: {qa_status} (Score: {result.qa_score}/10)"
+                    if result.qa_failure_reason:
+                        # Show failure reason for failed audits
+                        notes = f"Semantic QA: {qa_status} ({result.qa_score}/10) - {result.qa_failure_reason}"
+                    else:
+                        notes = f"Semantic QA: {qa_status} ({result.qa_score}/10)"
                 else:
                     notes = ""
 
