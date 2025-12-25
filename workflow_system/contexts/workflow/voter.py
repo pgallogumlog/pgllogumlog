@@ -458,9 +458,16 @@ def count_votes(
 
     # Get workflows from winning response (or first response as fallback)
     # We need this before consensus check for winner validation
+    # CRITICAL: Also collect ALL workflows from ALL responses for comprehensive fallback
     all_workflows: list[WorkflowRecommendation] = []
+    all_workflows_comprehensive: list[WorkflowRecommendation] = []
     winner_key = normalize_name(winner_name) if winner_name else ""
 
+    # Collect ALL workflows from ALL responses (up to 25 workflows total)
+    for result in per_response_data:
+        all_workflows_comprehensive.extend(_convert_workflows(result.workflows))
+
+    # Get winner's workflows for consensus validation
     if winner_key:
         for result in per_response_data:
             if normalize_name(result.answer) == winner_key:
@@ -468,7 +475,7 @@ def count_votes(
                 break
 
     if not all_workflows and per_response_data:
-        # Fallback: use first response's workflows
+        # Fallback: use first response's workflows for validation
         all_workflows = _convert_workflows(per_response_data[0].workflows)
 
     # DEBUG: Log workflow count before consensus logic
@@ -545,19 +552,21 @@ def count_votes(
         "vote_counter_fallback_decision",
         had_consensus=had_consensus,
         workflow_count=len(all_workflows),
-        will_use_fallback=not had_consensus and len(all_workflows) > 0,
+        comprehensive_workflow_count=len(all_workflows_comprehensive),
+        will_use_fallback=not had_consensus and len(all_workflows_comprehensive) > 0,
     )
 
-    if not had_consensus and all_workflows:
-        # Use ranked selection as fallback
+    if not had_consensus and all_workflows_comprehensive:
+        # Use ranked selection as fallback - score ALL workflows from ALL responses
         try:
-            top_workflow = rank_workflows_by_criteria(all_workflows)
+            top_workflow = rank_workflows_by_criteria(all_workflows_comprehensive)
             final_answer = top_workflow.name
             fallback_mode = True
             selection_method = "ranked_fallback"
             confidence_warning = (
                 f"Consensus voting failed ({confidence_percent}% confidence, {max_votes}/{total_responses} votes). "
-                f"Selected '{final_answer}' using weighted criteria (Feasibility 40%, ROI 30%, Complexity 30%). "
+                f"Selected '{final_answer}' using weighted criteria (Feasibility 40%, ROI 30%, Complexity 30%) "
+                f"across all {len(all_workflows_comprehensive)} workflows from {total_responses} responses. "
                 f"Recommend manual review before implementation."
             )
             logger.info(
@@ -566,12 +575,13 @@ def count_votes(
                 confidence=confidence_percent,
                 votes=max_votes,
                 total=total_responses,
+                workflows_scored=len(all_workflows_comprehensive),
             )
         except Exception as e:
             logger.error(
                 "vote_counter_fallback_failed",
                 error=str(e),
-                workflow_count=len(all_workflows),
+                workflow_count=len(all_workflows_comprehensive),
                 error_type=type(e).__name__,
             )
             # Keep "No consensus" as final_answer
