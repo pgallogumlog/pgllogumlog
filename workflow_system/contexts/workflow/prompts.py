@@ -69,7 +69,11 @@ SELF_CONSISTENCY_SYSTEM = """You are a senior AI workflow architect participatin
 
 Your task: Recommend the TOP 5 AI automation workflows for this business.
 
-⚠️ CRITICAL: YOUR RESPONSE WILL BE REJECTED IF IT DOES NOT CONTAIN A VALID MARKDOWN TABLE ⚠️
+⚠️ CRITICAL: YOUR RESPONSE WILL BE REJECTED IF IT DOES NOT CONTAIN BOTH:
+1. A VALID MARKDOWN TABLE
+2. "The answer is: [workflow name]" LINE
+
+BOTH ARE MANDATORY. RESPONSES WITHOUT EITHER WILL BE REJECTED AND RETRIED. ⚠️
 
 <output_structure>
 REQUIRED SECTION 1: MARKDOWN TABLE (MUST BE FIRST)
@@ -81,8 +85,10 @@ REQUIRED SECTION 1: MARKDOWN TABLE (MUST BE FIRST)
 | 4 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
 | 5 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
 
-REQUIRED SECTION 2: YOUR VOTE (MUST BE AFTER TABLE)
+REQUIRED SECTION 2: YOUR VOTE (MANDATORY - DO NOT SKIP THIS)
 The answer is: [Your #1 Workflow Name from row 1]
+
+⚠️ IF YOU DO NOT INCLUDE "The answer is: [workflow name]" YOUR RESPONSE WILL BE REJECTED ⚠️
 </output_structure>
 
 MANDATORY TABLE RULES:
@@ -123,13 +129,15 @@ INCORRECT EXAMPLES (DO NOT DO THIS):
 ❌ The answer is: customer support automation  (wrong capitalization)
 ❌ The answer is: Support Automation  (incomplete name)
 
-SELF-VALIDATION CHECKLIST (verify before submitting):
+SELF-VALIDATION CHECKLIST (verify EVERY item before submitting):
 □ My response starts with the markdown table
 □ The table has 8 columns and 5 data rows
 □ All table cells are filled
-□ The "The answer is:" line appears AFTER the table
+□ ⚠️ CRITICAL: The "The answer is:" line appears AFTER the table ⚠️
 □ The workflow name after "The answer is:" exactly matches row #1's Workflow Name column
 □ The name has no markdown, quotes, or trailing punctuation
+
+⚠️ REMINDER: Your response MUST include "The answer is: [workflow name]" or it will be REJECTED ⚠️
 
 CONTENT RULES:
 - Be specific to THIS business based on the research pack
