@@ -303,6 +303,7 @@ class WorkflowEngine:
     ) -> ConsensusResult:
         """Run self-consistency voting with multiple temperatures."""
         import json
+        from contexts.workflow.voter import validate_response_has_table
 
         # Build the prompt with research pack
         styles = [
@@ -321,24 +322,201 @@ RESEARCH PACK (JSON):
 
 STYLE HINT: {style}"""
 
-        # Generate responses in parallel
+        # Generate responses in parallel with retry logic
+        responses, metrics = await self._generate_with_retry(
+            prompt_template=prompt_template,
+            normalized_prompt=normalized_prompt,
+            research_pack=research_pack,
+            styles=styles,
+        )
+
+        # Count votes and determine consensus with quality metrics
+        return count_votes(
+            responses=responses,
+            min_consensus_votes=self._min_consensus,
+            min_consensus_percent=self._min_consensus_percent,
+            valid_count=metrics["valid_count"],
+            invalid_count=metrics["invalid_count"],
+            retry_count=metrics["retry_count"],
+        )
+
+    async def _generate_with_retry(
+        self,
+        prompt_template: str,
+        normalized_prompt: str,
+        research_pack: dict,
+        styles: list[str],
+        max_retries: int = 2,
+    ) -> tuple[list[str], dict]:
+        """
+        Generate responses with individual retry logic for invalid responses.
+
+        Args:
+            prompt_template: Template for building prompts
+            normalized_prompt: The normalized user prompt
+            research_pack: Research data
+            styles: List of style hints
+            max_retries: Maximum retries per response (default 2)
+
+        Returns:
+            Tuple of (responses, metrics_dict)
+        """
+        import json
+        from contexts.workflow.voter import validate_response_has_table
+
+        # Initial parallel generation
+        prompt = prompt_template.format(
+            prompt=normalized_prompt,
+            research=json.dumps(research_pack),
+            style=styles[0],
+        )
+
         responses = await self._ai.generate_parallel(
-            prompt=prompt_template.format(
-                prompt=normalized_prompt,
-                research=json.dumps(research_pack),
-                style=styles[0],  # First style
-            ),
+            prompt=prompt,
             system_prompt=SELF_CONSISTENCY_SYSTEM,
             temperatures=self._temperatures,
             max_tokens=8192,
         )
 
-        # Count votes and determine consensus
-        return count_votes(
-            responses=responses,
-            min_consensus_votes=self._min_consensus,
-            min_consensus_percent=self._min_consensus_percent,
+        # Validate and retry invalid responses
+        final_responses = []
+        valid_count = 0
+        invalid_count = 0
+        retry_count = 0
+
+        for idx, response in enumerate(responses):
+            is_valid, error_msg = validate_response_has_table(response)
+
+            if is_valid:
+                final_responses.append(response)
+                valid_count += 1
+                logger.debug(
+                    "sc_response_valid",
+                    temperature=self._temperatures[idx],
+                    index=idx,
+                )
+            else:
+                # Retry invalid response
+                invalid_count += 1
+                retry_count += 1
+                logger.warning(
+                    "sc_response_invalid_retrying",
+                    temperature=self._temperatures[idx],
+                    index=idx,
+                    error=error_msg,
+                )
+
+                retried_response = await self._retry_single_response(
+                    prompt=prompt,
+                    temperature=self._temperatures[idx],
+                    max_retries=max_retries,
+                    original_error=error_msg,
+                )
+
+                # Validate retry result
+                retry_valid, retry_error = validate_response_has_table(retried_response)
+                if retry_valid:
+                    valid_count += 1
+                else:
+                    invalid_count += 1
+
+                final_responses.append(retried_response)
+
+        # Batch-level validation: ensure minimum valid responses
+        min_valid_responses = 3
+        if valid_count < min_valid_responses:
+            logger.error(
+                "sc_batch_validation_failed",
+                valid_count=valid_count,
+                invalid_count=invalid_count,
+                total=len(responses),
+                min_required=min_valid_responses,
+                message=f"Only {valid_count}/{len(responses)} responses are valid. Need at least {min_valid_responses}.",
+            )
+        else:
+            logger.info(
+                "sc_batch_validation_passed",
+                valid_count=valid_count,
+                invalid_count=invalid_count,
+                total=len(responses),
+            )
+
+        # Return responses and quality metrics
+        metrics = {
+            "valid_count": valid_count,
+            "invalid_count": invalid_count,
+            "retry_count": retry_count,
+        }
+
+        return final_responses, metrics
+
+    async def _retry_single_response(
+        self,
+        prompt: str,
+        temperature: float,
+        max_retries: int,
+        original_error: str,
+    ) -> str:
+        """
+        Retry a single failed response up to max_retries times.
+
+        Args:
+            prompt: The prompt to send
+            temperature: Temperature for this response
+            max_retries: Maximum retry attempts
+            original_error: Error from original response
+
+        Returns:
+            Response string (may still be invalid if all retries fail)
+        """
+        from contexts.workflow.voter import validate_response_has_table
+
+        for attempt in range(max_retries):
+            logger.info(
+                "sc_retrying_response",
+                temperature=temperature,
+                attempt=attempt + 1,
+                max_retries=max_retries,
+            )
+
+            # Enhanced prompt for retry with explicit warning
+            enhanced_prompt = f"""{prompt}
+
+⚠️ CRITICAL: Previous response was REJECTED due to: {original_error}
+You MUST include a complete markdown table with all required columns and rows.
+Your response will be REJECTED again if the table is missing or incomplete."""
+
+            response = await self._ai.generate(
+                prompt=enhanced_prompt,
+                system_prompt=SELF_CONSISTENCY_SYSTEM,
+                temperature=temperature,
+                max_tokens=8192,
+            )
+
+            is_valid, error_msg = validate_response_has_table(response)
+
+            if is_valid:
+                logger.info(
+                    "sc_retry_successful",
+                    temperature=temperature,
+                    attempt=attempt + 1,
+                )
+                return response
+            else:
+                logger.warning(
+                    "sc_retry_failed",
+                    temperature=temperature,
+                    attempt=attempt + 1,
+                    error=error_msg,
+                )
+
+        # All retries exhausted - return last response (will be marked invalid by voter)
+        logger.error(
+            "sc_all_retries_exhausted",
+            temperature=temperature,
+            max_retries=max_retries,
         )
+        return response  # Return last attempt even if invalid
 
     async def _run_grouper(
         self,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 import structlog
 
@@ -22,6 +23,69 @@ class VoteResult:
 
     answer: str
     workflows: list[dict]
+
+
+def fuzzy_match_score(name1: str, name2: str) -> float:
+    """
+    Calculate similarity score between two workflow names.
+
+    Uses SequenceMatcher for Levenshtein-like distance comparison.
+
+    Args:
+        name1: First workflow name
+        name2: Second workflow name
+
+    Returns:
+        Similarity score (0.0 to 1.0), where 1.0 is identical
+    """
+    if not name1 or not name2:
+        return 0.0
+
+    # Normalize both names first
+    norm1 = normalize_name(name1)
+    norm2 = normalize_name(name2)
+
+    if norm1 == norm2:
+        return 1.0
+
+    # Use SequenceMatcher for fuzzy comparison
+    return SequenceMatcher(None, norm1, norm2).ratio()
+
+
+def find_fuzzy_match(target_name: str, existing_names: list[str], threshold: float = 0.85) -> str | None:
+    """
+    Find the best fuzzy match for a workflow name in existing names.
+
+    Args:
+        target_name: The name to match
+        existing_names: List of existing workflow names to match against
+        threshold: Minimum similarity score to consider a match (default 0.85)
+
+    Returns:
+        The best matching name from existing_names, or None if no match above threshold
+    """
+    if not target_name or not existing_names:
+        return None
+
+    best_match = None
+    best_score = 0.0
+
+    for existing in existing_names:
+        score = fuzzy_match_score(target_name, existing)
+        if score > best_score:
+            best_score = score
+            best_match = existing
+
+    if best_score >= threshold:
+        logger.debug(
+            "fuzzy_match_found",
+            target=target_name,
+            matched=best_match,
+            score=round(best_score, 3),
+        )
+        return best_match
+
+    return None
 
 
 def normalize_name(name: str) -> str:
@@ -65,6 +129,44 @@ def normalize_name(name: str) -> str:
     return name.strip().lower()
 
 
+def validate_response_has_table(response: str) -> tuple[bool, str]:
+    """
+    Validate that a response contains a valid markdown table.
+
+    Checks for:
+    - Table header with expected columns
+    - Separator row
+    - At least one data row
+
+    Args:
+        response: Raw AI response text
+
+    Returns:
+        (is_valid, error_message) tuple
+    """
+    if not response:
+        return False, "Empty response"
+
+    # Check for table header marker
+    if "| #" not in response or "Workflow Name" not in response:
+        return False, "Missing table header (no '| #' or 'Workflow Name' found)"
+
+    # Check for separator row (|---|---|...)
+    if not re.search(r'\|[-\s]+\|[-\s]+\|', response):
+        return False, "Missing table separator row"
+
+    # Count table rows (lines starting with |)
+    table_lines = [line for line in response.split('\n') if line.strip().startswith('|')]
+    if len(table_lines) < 3:  # header + separator + at least 1 data row
+        return False, f"Incomplete table: only {len(table_lines)} rows found (need at least 3)"
+
+    # Check for "The answer is" line
+    if not re.search(r"The answer is[:\s]", response, re.IGNORECASE):
+        return False, "Missing 'The answer is' line"
+
+    return True, ""
+
+
 def parse_response(response: str) -> VoteResult | None:
     """
     Parse a single self-consistency response.
@@ -81,6 +183,16 @@ def parse_response(response: str) -> VoteResult | None:
     """
     if not response:
         logger.debug("vote_counter_empty_response")
+        return None
+
+    # Validate response has required structure before parsing
+    is_valid, error_msg = validate_response_has_table(response)
+    if not is_valid:
+        logger.warning(
+            "vote_counter_invalid_response_structure",
+            error=error_msg,
+            response_preview=response[:200] if response else ""
+        )
         return None
 
     # Extract the answer: "The answer is <Workflow Name>"
@@ -270,6 +382,9 @@ def count_votes(
     responses: list[str],
     min_consensus_votes: int = 3,
     min_consensus_percent: int = 60,
+    valid_count: int = 0,
+    invalid_count: int = 0,
+    retry_count: int = 0,
 ) -> ConsensusResult:
     """
     Aggregate votes from multiple self-consistency responses.
@@ -283,12 +398,14 @@ def count_votes(
         ConsensusResult with final answer and statistics
     """
     vote_counts: dict[str, int] = {}
+    vote_original_names: dict[str, str] = {}  # Map normalized -> first original name
     max_votes = 0
     winner_name = ""
     answers_seen: list[str] = []
     per_response_data: list[VoteResult] = []
+    fuzzy_match_count = 0  # Track fuzzy matches for quality metrics
 
-    # Process each response
+    # Process each response with fuzzy matching
     for response in responses:
         result = parse_response(response)
         if result is None:
@@ -298,11 +415,33 @@ def count_votes(
         per_response_data.append(result)
 
         key = normalize_name(result.answer)
-        vote_counts[key] = vote_counts.get(key, 0) + 1
 
-        if vote_counts[key] > max_votes:
-            max_votes = vote_counts[key]
-            winner_name = result.answer
+        # Try fuzzy matching against existing vote keys
+        existing_keys = list(vote_counts.keys())
+        fuzzy_match = find_fuzzy_match(result.answer,
+                                       [vote_original_names.get(k, k) for k in existing_keys],
+                                       threshold=0.85)
+
+        if fuzzy_match:
+            # Found a fuzzy match - consolidate vote
+            matched_key = normalize_name(fuzzy_match)
+            vote_counts[matched_key] = vote_counts.get(matched_key, 0) + 1
+            fuzzy_match_count += 1
+            logger.debug(
+                "vote_consolidated_by_fuzzy_match",
+                original=result.answer,
+                matched_to=fuzzy_match,
+            )
+        else:
+            # New unique answer
+            vote_counts[key] = vote_counts.get(key, 0) + 1
+            vote_original_names[key] = result.answer
+
+        # Track winner (use the key with most votes)
+        for k, count in vote_counts.items():
+            if count > max_votes:
+                max_votes = count
+                winner_name = vote_original_names.get(k, result.answer)
 
     # Calculate statistics
     total_responses = len(answers_seen)
@@ -458,6 +597,11 @@ def count_votes(
         fallback_mode=fallback_mode,
         confidence_warning=confidence_warning,
         selection_method=selection_method,
+        # Phase C: Quality metrics
+        valid_responses=valid_count,
+        invalid_responses=invalid_count,
+        retried_responses=retry_count,
+        fuzzy_matches=fuzzy_match_count,
     )
 
 

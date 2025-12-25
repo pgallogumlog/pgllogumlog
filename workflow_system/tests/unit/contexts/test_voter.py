@@ -6,9 +6,12 @@ import pytest
 
 from contexts.workflow.voter import (
     count_votes,
+    fuzzy_match_score,
+    find_fuzzy_match,
     normalize_name,
     parse_markdown_table,
     parse_response,
+    validate_response_has_table,
 )
 
 
@@ -77,6 +80,113 @@ class TestNormalizeName:
         assert normalize_name('"A  Lead  Scoring  System"') == "lead scoring system"
 
 
+class TestFuzzyMatching:
+    """Tests for fuzzy matching functions."""
+
+    def test_fuzzy_match_score_identical(self):
+        """Test fuzzy match score for identical names."""
+        assert fuzzy_match_score("Support Bot", "Support Bot") == 1.0
+
+    def test_fuzzy_match_score_different_case(self):
+        """Test fuzzy match score ignores case."""
+        score = fuzzy_match_score("Support Bot", "SUPPORT BOT")
+        assert score == 1.0
+
+    def test_fuzzy_match_score_similar(self):
+        """Test fuzzy match score for similar names."""
+        score = fuzzy_match_score("Lead Scoring", "Lead Scorer")
+        assert score > 0.75  # Should be reasonably high similarity
+
+    def test_fuzzy_match_score_very_different(self):
+        """Test fuzzy match score for very different names."""
+        score = fuzzy_match_score("Lead Scoring", "Email Automation")
+        assert score < 0.5  # Should be low similarity
+
+    def test_fuzzy_match_score_empty_strings(self):
+        """Test fuzzy match score with empty strings."""
+        assert fuzzy_match_score("", "Support Bot") == 0.0
+        assert fuzzy_match_score("Support Bot", "") == 0.0
+        assert fuzzy_match_score("", "") == 0.0
+
+    def test_find_fuzzy_match_exact(self):
+        """Test finding exact fuzzy match."""
+        existing = ["Support Bot", "Lead Scoring", "Email Automation"]
+        match = find_fuzzy_match("Support Bot", existing)
+        assert match == "Support Bot"
+
+    def test_find_fuzzy_match_similar(self):
+        """Test finding similar fuzzy match."""
+        existing = ["Lead Scoring System", "Email Automation", "Support Bot"]
+        match = find_fuzzy_match("Lead Scoring", existing, threshold=0.70)
+        assert match == "Lead Scoring System"
+
+    def test_find_fuzzy_match_no_match(self):
+        """Test finding no fuzzy match when below threshold."""
+        existing = ["Support Bot", "Email Automation"]
+        match = find_fuzzy_match("Lead Scoring", existing, threshold=0.85)
+        assert match is None
+
+    def test_find_fuzzy_match_empty_list(self):
+        """Test finding fuzzy match with empty list."""
+        match = find_fuzzy_match("Support Bot", [])
+        assert match is None
+
+
+class TestValidateResponseHasTable:
+    """Tests for validate_response_has_table function."""
+
+    def test_valid_response(self):
+        """Test validation of valid response with table and answer."""
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is: Support Bot"""
+        is_valid, error = validate_response_has_table(response)
+        assert is_valid is True
+        assert error == ""
+
+    def test_empty_response(self):
+        """Test validation of empty response."""
+        is_valid, error = validate_response_has_table("")
+        assert is_valid is False
+        assert "Empty response" in error
+
+    def test_missing_table_header(self):
+        """Test validation when table header is missing."""
+        response = "Some text without a table\nThe answer is: Support Bot"
+        is_valid, error = validate_response_has_table(response)
+        assert is_valid is False
+        assert "Missing table header" in error
+
+    def test_missing_separator(self):
+        """Test validation when separator row is missing."""
+        response = """| # | Workflow Name | Primary Objective |
+| 1 | Support Bot | Automate tickets |
+The answer is: Support Bot"""
+        is_valid, error = validate_response_has_table(response)
+        assert is_valid is False
+        assert "Missing table separator" in error
+
+    def test_incomplete_table(self):
+        """Test validation when table has too few rows."""
+        response = """| # | Workflow Name | Primary Objective |
+|---|---------------|-------------------|
+The answer is: Support Bot"""
+        is_valid, error = validate_response_has_table(response)
+        assert is_valid is False
+        assert "Incomplete table" in error
+
+    def test_missing_answer_line(self):
+        """Test validation when 'The answer is' line is missing."""
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |"""
+        is_valid, error = validate_response_has_table(response)
+        assert is_valid is False
+        assert "Missing 'The answer is' line" in error
+
+
 class TestParseMarkdownTable:
     """Tests for parse_markdown_table function."""
 
@@ -137,7 +247,19 @@ The answer is Support Bot"""
         assert result is None
 
     def test_answer_with_period(self):
+        """Test that response with answer but no table is rejected."""
         response = "The answer is Customer Support Bot."
+        result = parse_response(response)
+        # Should be rejected due to missing table
+        assert result is None
+
+    def test_answer_with_period_and_table(self):
+        """Test parsing answer with period when table is present."""
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | Customer Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is Customer Support Bot."""
         result = parse_response(response)
         assert result is not None
         assert result.answer == "Customer Support Bot"
