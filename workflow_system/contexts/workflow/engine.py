@@ -57,7 +57,7 @@ class WorkflowEngine:
         self,
         ai_provider: AIProvider,
         temperatures: Optional[list[float]] = None,
-        min_consensus_votes: int = 2,
+        min_consensus_votes: int = 3,
         qa_sheets_logger: Optional[QASheetsLogger] = None,
     ):
         """
@@ -71,8 +71,11 @@ class WorkflowEngine:
             qa_sheets_logger: Optional sheets logger for QA results
         """
         self._ai = ai_provider
-        self._temperatures = temperatures or [0.4, 0.6, 0.8, 1.0, 1.2]
+        # Narrower temperature range [0.5-0.9] reduces response variance
+        # while maintaining enough diversity for meaningful consensus
+        self._temperatures = temperatures or [0.5, 0.6, 0.7, 0.8, 0.9]
         self._min_consensus = min_consensus_votes
+        self._min_consensus_percent = 60  # Dual threshold with votes
         self._qa_logger = qa_sheets_logger
 
         # Check if we have a capturing adapter for QA
@@ -143,6 +146,26 @@ class WorkflowEngine:
             consensus_strength=consensus.consensus_strength,
             confidence=consensus.confidence_percent,
         )
+
+        # Consensus Quality Gate - log fallback usage or failure
+        if consensus.fallback_mode:
+            logger.warning(
+                "consensus_quality_gate_fallback",
+                run_id=run_id,
+                selection_method=consensus.selection_method,
+                confidence=consensus.confidence_percent,
+                final_answer=consensus.final_answer,
+                warning=consensus.confidence_warning,
+            )
+        elif not consensus.had_consensus or consensus.confidence_percent < self._min_consensus_percent:
+            logger.warning(
+                "consensus_quality_gate_failed",
+                run_id=run_id,
+                had_consensus=consensus.had_consensus,
+                confidence=consensus.confidence_percent,
+                required_percent=self._min_consensus_percent,
+                final_answer=consensus.final_answer,
+            )
 
         # Step 4: Group workflows into phases
         self._push_context("WorkflowEngine._run_grouper")
@@ -314,6 +337,7 @@ STYLE HINT: {style}"""
         return count_votes(
             responses=responses,
             min_consensus_votes=self._min_consensus,
+            min_consensus_percent=self._min_consensus_percent,
         )
 
     async def _run_grouper(

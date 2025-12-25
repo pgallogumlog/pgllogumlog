@@ -39,6 +39,9 @@ class ConsensusResult:
     consensus_strength: str  # "Strong", "Moderate", "Weak"
     had_consensus: bool
     all_workflows: list[WorkflowRecommendation]
+    fallback_mode: bool = False  # True if ranked fallback was used
+    confidence_warning: str = ""  # Warning message when using fallback
+    selection_method: str = "consensus"  # "consensus" or "ranked_fallback"
 
 
 @dataclass

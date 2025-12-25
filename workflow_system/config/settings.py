@@ -75,11 +75,14 @@ class Settings(BaseSettings):
     # Self-Consistency Engine
     # ===================
     sc_temperatures: str = Field(
-        default="0.3,0.5,0.7,0.85,1.0",
-        description="Comma-separated temperature values (0-1 range)",
+        default="0.5,0.6,0.7,0.8,0.9",
+        description="Comma-separated temperature values (0.5-0.9 range for tighter consensus)",
     )
     sc_min_consensus_votes: int = Field(
-        default=2, description="Minimum votes for consensus"
+        default=3, description="Minimum votes for consensus (3 of 5 = 60%)"
+    )
+    sc_min_consensus_percent: int = Field(
+        default=60, description="Minimum confidence percentage for consensus"
     )
     sc_model: str = Field(
         default="claude-sonnet-4-20250514", description="Claude model for SC engine"

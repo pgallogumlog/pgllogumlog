@@ -25,8 +25,44 @@ class VoteResult:
 
 
 def normalize_name(name: str) -> str:
-    """Normalize workflow name for voting comparison."""
-    return (name or "").strip().lower()
+    """
+    Normalize workflow name for voting comparison.
+
+    Strips markdown formatting, quotes, punctuation, and normalizes case.
+    This ensures votes for "**Support Bot**" and "Support Bot" are counted together.
+
+    Handles:
+    - Markdown: **bold**, *italic*, `code`
+    - Quotes: "name" or 'name'
+    - Brackets: [name]
+    - Trailing punctuation: name. or name!
+    - Multiple spaces and case normalization
+    """
+    if not name:
+        return ""
+
+    # Strip markdown formatting
+    name = re.sub(r'\*\*(.+?)\*\*', r'\1', name)  # **bold**
+    name = re.sub(r'\*(.+?)\*', r'\1', name)      # *italic*
+    name = re.sub(r'`(.+?)`', r'\1', name)        # `code`
+
+    # Strip brackets (anywhere in string)
+    name = re.sub(r'\[(.+?)\]', r'\1', name)
+
+    # Strip quotes (only at start/end)
+    name = re.sub(r'^["\'](.+?)["\']$', r'\1', name)
+
+    # Strip trailing punctuation (but preserve internal punctuation like hyphens)
+    name = re.sub(r'[.,;:!?]+$', '', name)
+
+    # Strip leading "The" or "A" or "An" (common article variations)
+    name = re.sub(r'^(the|a|an)\s+', '', name, flags=re.IGNORECASE)
+
+    # Normalize whitespace (collapse multiple spaces to single space)
+    name = re.sub(r'\s+', ' ', name)
+
+    # Normalize case
+    return name.strip().lower()
 
 
 def parse_response(response: str) -> VoteResult | None:
@@ -115,16 +151,133 @@ def parse_markdown_table(response: str) -> list[dict]:
     return workflows
 
 
+def _score_feasibility(feasibility: str) -> float:
+    """Score feasibility from workflow data (0-100)."""
+    feasibility_lower = feasibility.lower().strip()
+    if "high" in feasibility_lower or "easy" in feasibility_lower:
+        return 100.0
+    elif "medium" in feasibility_lower or "moderate" in feasibility_lower:
+        return 60.0
+    elif "low" in feasibility_lower or "hard" in feasibility_lower or "difficult" in feasibility_lower:
+        return 30.0
+    return 50.0  # Default if unclear
+
+
+def _score_roi_potential(objective: str, problems: str) -> float:
+    """Score ROI potential based on objective and problems (0-100)."""
+    # Higher score for automation, efficiency, cost reduction keywords
+    text = (objective + " " + problems).lower()
+    score = 50.0  # Base score
+
+    # High ROI indicators
+    if any(word in text for word in ["automate", "automation", "eliminate", "reduce cost"]):
+        score += 20
+    if any(word in text for word in ["revenue", "growth", "sales", "conversion"]):
+        score += 15
+    if any(word in text for word in ["efficiency", "productivity", "save time"]):
+        score += 10
+    if any(word in text for word in ["scale", "scalable", "high volume"]):
+        score += 5
+
+    return min(score, 100.0)
+
+
+def _score_implementation_complexity(tools: str, how_it_works: str) -> float:
+    """Score implementation complexity - lower complexity = higher score (0-100)."""
+    text = (tools + " " + how_it_works).lower()
+    score = 70.0  # Base score (moderate complexity)
+
+    # Low complexity indicators (increase score)
+    if any(tool in text for tool in ["n8n", "zapier", "make", "airtable"]):
+        score += 15  # No-code tools are easier
+    if "api" in text and "custom" not in text:
+        score += 10  # Standard APIs easier than custom
+
+    # High complexity indicators (decrease score)
+    if any(word in text for word in ["custom", "build", "develop", "train model"]):
+        score -= 20
+    if any(word in text for word in ["ml", "machine learning", "ai model", "nlp"]):
+        score -= 15
+    if "integration" in text and "multiple" in text:
+        score -= 10
+
+    return max(min(score, 100.0), 0.0)
+
+
+def rank_workflows_by_criteria(workflows: list[WorkflowRecommendation]) -> WorkflowRecommendation:
+    """
+    Rank workflows using weighted criteria when consensus fails.
+
+    Criteria weights:
+    - Feasibility: 40%
+    - ROI potential: 30%
+    - Implementation complexity: 30%
+
+    Args:
+        workflows: List of workflow recommendations
+
+    Returns:
+        Top-ranked workflow
+    """
+    if not workflows:
+        raise ValueError("Cannot rank empty workflow list")
+
+    scored_workflows = []
+
+    for wf in workflows:
+        # Score each criterion (0-100)
+        feasibility_score = _score_feasibility(wf.feasibility)
+        roi_score = _score_roi_potential(wf.objective, wf.description)
+        complexity_score = _score_implementation_complexity(
+            ", ".join(wf.tools) if isinstance(wf.tools, list) else str(wf.tools),
+            wf.description
+        )
+
+        # Weighted total
+        total_score = (
+            feasibility_score * 0.40 +
+            roi_score * 0.30 +
+            complexity_score * 0.30
+        )
+
+        scored_workflows.append((total_score, wf))
+
+        logger.debug(
+            "workflow_scored",
+            name=wf.name,
+            feasibility=feasibility_score,
+            roi=roi_score,
+            complexity=complexity_score,
+            total=round(total_score, 2),
+        )
+
+    # Sort by score descending
+    scored_workflows.sort(key=lambda x: x[0], reverse=True)
+
+    top_workflow = scored_workflows[0][1]
+    top_score = scored_workflows[0][0]
+
+    logger.info(
+        "workflow_ranked_selection",
+        winner=top_workflow.name,
+        score=round(top_score, 2),
+    )
+
+    return top_workflow
+
+
 def count_votes(
     responses: list[str],
-    min_consensus_votes: int = 2,
+    min_consensus_votes: int = 3,
+    min_consensus_percent: int = 60,
 ) -> ConsensusResult:
     """
     Aggregate votes from multiple self-consistency responses.
 
     Args:
         responses: List of AI response strings
-        min_consensus_votes: Minimum votes required for consensus
+        min_consensus_votes: Minimum votes required for consensus (default 3)
+        min_consensus_percent: Minimum percentage required for consensus (default 60)
 
     Returns:
         ConsensusResult with final answer and statistics
@@ -164,48 +317,147 @@ def count_votes(
         elif confidence_percent >= 40:
             consensus_strength = "Moderate"
 
-    # Determine final answer (requires minimum consensus)
+    # Get workflows from winning response (or first response as fallback)
+    # We need this before consensus check for winner validation
+    all_workflows: list[WorkflowRecommendation] = []
+    winner_key = normalize_name(winner_name) if winner_name else ""
+
+    if winner_key:
+        for result in per_response_data:
+            if normalize_name(result.answer) == winner_key:
+                all_workflows = _convert_workflows(result.workflows)
+                break
+
+    if not all_workflows and per_response_data:
+        # Fallback: use first response's workflows
+        all_workflows = _convert_workflows(per_response_data[0].workflows)
+
+    # DEBUG: Log workflow count before consensus logic
+    logger.info(
+        "vote_counter_workflows_extracted",
+        workflow_count=len(all_workflows),
+        total_responses=len(per_response_data),
+        winner_name=winner_name,
+    )
+
+    # Determine final answer (requires dual threshold: votes AND percent)
     final_answer = "No consensus"
     had_consensus = False
 
-    if max_votes >= min_consensus_votes and winner_name:
-        final_answer = winner_name
-        had_consensus = True
-        logger.info(
-            "vote_counter_consensus_reached",
-            winner=winner_name,
+    # Check dual threshold
+    meets_vote_threshold = max_votes >= min_consensus_votes
+    meets_percent_threshold = confidence_percent >= min_consensus_percent
+
+    # CRITICAL: Check if we have workflows to validate against
+    if not all_workflows:
+        logger.error(
+            "vote_counter_no_workflows_parsed",
+            winner_name=winner_name,
             votes=max_votes,
-            total=total_responses,
+            total_responses=len(per_response_data),
+            message="Cannot validate consensus - no workflows were parsed from responses. AI may have skipped markdown table.",
         )
+        # Force consensus to fail - cannot validate without workflow data
+        meets_vote_threshold = False
+
+    if meets_vote_threshold and meets_percent_threshold and winner_name:
+        # Validate winner exists in parsed workflows and get the canonical name
+        canonical_name = None
+        for w in all_workflows:
+            if normalize_name(w.name) == winner_key:
+                canonical_name = w.name
+                break
+
+        if canonical_name:
+            final_answer = canonical_name  # Use the name from the workflow table (proper capitalization)
+            had_consensus = True
+            logger.info(
+                "vote_counter_consensus_reached",
+                winner=canonical_name,
+                votes=max_votes,
+                total=total_responses,
+                confidence=confidence_percent,
+            )
+        else:
+            logger.warning(
+                "vote_counter_winner_not_in_workflows",
+                winner=winner_name,
+                workflow_names=[w.name for w in all_workflows[:5]],
+            )
     else:
         logger.warning(
             "vote_counter_no_consensus",
             max_votes=max_votes,
             total=total_responses,
-            required=min_consensus_votes,
+            confidence=confidence_percent,
+            required_votes=min_consensus_votes,
+            required_percent=min_consensus_percent,
+            meets_vote_threshold=meets_vote_threshold,
+            meets_percent_threshold=meets_percent_threshold,
         )
 
-    # Get workflows from winning response (or first response as fallback)
-    all_workflows: list[WorkflowRecommendation] = []
+    # Phase 3: Ranked Fallback when consensus fails
+    fallback_mode = False
+    confidence_warning = ""
+    selection_method = "consensus"
 
-    if had_consensus:
-        winner_key = normalize_name(final_answer)
-        for result in per_response_data:
-            if normalize_name(result.answer) == winner_key:
-                all_workflows = _convert_workflows(result.workflows)
-                break
-    elif per_response_data:
-        # Fallback: use first response's workflows
-        all_workflows = _convert_workflows(per_response_data[0].workflows)
+    # DEBUG: Log fallback decision point
+    logger.info(
+        "vote_counter_fallback_decision",
+        had_consensus=had_consensus,
+        workflow_count=len(all_workflows),
+        will_use_fallback=not had_consensus and len(all_workflows) > 0,
+    )
+
+    if not had_consensus and all_workflows:
+        # Use ranked selection as fallback
+        try:
+            top_workflow = rank_workflows_by_criteria(all_workflows)
+            final_answer = top_workflow.name
+            fallback_mode = True
+            selection_method = "ranked_fallback"
+            confidence_warning = (
+                f"Consensus voting failed ({confidence_percent}% confidence, {max_votes}/{total_responses} votes). "
+                f"Selected '{final_answer}' using weighted criteria (Feasibility 40%, ROI 30%, Complexity 30%). "
+                f"Recommend manual review before implementation."
+            )
+            logger.info(
+                "vote_counter_fallback_used",
+                selected_workflow=final_answer,
+                confidence=confidence_percent,
+                votes=max_votes,
+                total=total_responses,
+            )
+        except Exception as e:
+            logger.error(
+                "vote_counter_fallback_failed",
+                error=str(e),
+                workflow_count=len(all_workflows),
+                error_type=type(e).__name__,
+            )
+            # Keep "No consensus" as final_answer
+
+    # DEBUG: Log final result
+    logger.info(
+        "vote_counter_final_result",
+        final_answer=final_answer,
+        had_consensus=had_consensus,
+        fallback_mode=fallback_mode,
+        selection_method=selection_method,
+        workflow_count=len(all_workflows),
+    )
 
     return ConsensusResult(
-        final_answer=final_answer.lower() if final_answer != "No consensus" else final_answer,
+        final_answer=final_answer,  # Already has proper capitalization from workflow table
         total_responses=total_responses,
         votes_for_winner=max_votes,
         confidence_percent=confidence_percent,
         consensus_strength=consensus_strength,
         had_consensus=had_consensus,
         all_workflows=all_workflows,
+        fallback_mode=fallback_mode,
+        confidence_warning=confidence_warning,
+        selection_method=selection_method,
     )
 
 
