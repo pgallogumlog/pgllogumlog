@@ -527,6 +527,134 @@ class TestScoreWorkflow:
         # Default feasibility (20) + default impact (15) + default complexity (20) = 55
         assert 50.0 <= score <= 60.0
 
+    def test_semantic_relevance_boost_when_prompt_provided(self):
+        """Test that workflows matching the user's question get higher scores."""
+        # User asked about "document review for M&A due diligence"
+        user_prompt = "I need help with document review for cross-border M&A due diligence"
+
+        # Workflow that matches the question
+        relevant_workflow = {
+            "name": "Document Review Automation",
+            "feasibility": "Medium",
+            "objective": "Automate due diligence document analysis",
+            "problems": "Manual M&A document review is slow",
+            "how_it_works": "AI document processing",
+            "tools": "Standard",
+        }
+
+        # Workflow that doesn't match (reporting instead of document processing)
+        irrelevant_workflow = {
+            "name": "Client Reporting Generator",
+            "feasibility": "High",  # Better feasibility
+            "objective": "Generate automated reports",
+            "problems": "Manual reporting takes time",
+            "how_it_works": "Simple template generation",
+            "tools": "Standard",
+        }
+
+        relevant_score = score_workflow(relevant_workflow, user_prompt)
+        irrelevant_score = score_workflow(irrelevant_workflow, user_prompt)
+
+        # Relevant workflow should score higher despite lower feasibility
+        assert relevant_score > irrelevant_score, (
+            f"Relevant workflow ({relevant_score}) should score higher than "
+            f"irrelevant workflow ({irrelevant_score}) when prompt context is provided"
+        )
+
+    def test_semantic_relevance_ignored_when_no_prompt(self):
+        """Test that semantic relevance doesn't apply when no prompt is provided."""
+        workflow = {
+            "name": "Test Workflow",
+            "feasibility": "High",
+            "objective": "Test objective",
+            "problems": "Test problem",
+            "how_it_works": "Test solution",
+            "tools": "Standard",
+        }
+
+        # Score should be the same with or without empty prompt
+        score_no_prompt = score_workflow(workflow)
+        score_empty_prompt = score_workflow(workflow, "")
+        score_none_prompt = score_workflow(workflow, None)
+
+        assert score_no_prompt == score_empty_prompt == score_none_prompt
+
+
+class TestCalculateSemanticRelevance:
+    """Tests for _calculate_semantic_relevance function (defensive programming)."""
+
+    def test_valid_inputs_with_overlap(self):
+        """Test normal case with keyword overlap."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        prompt = "I need help with document review for M&A due diligence"
+        workflow_text = "Document Review Automation for due diligence processes"
+
+        score = _calculate_semantic_relevance(prompt, workflow_text)
+
+        assert score > 0.0
+        assert score <= 1.0
+
+    def test_none_prompt_returns_zero(self):
+        """Test that None prompt returns 0.0 without crashing."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance(None, "Valid workflow text")
+
+        assert score == 0.0
+
+    def test_none_workflow_text_returns_zero(self):
+        """Test that None workflow_text returns 0.0 without crashing."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance("Valid prompt", None)
+
+        assert score == 0.0
+
+    def test_empty_string_prompt_returns_zero(self):
+        """Test that empty string prompt returns 0.0."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance("", "Valid workflow text")
+
+        assert score == 0.0
+
+    def test_whitespace_only_prompt_returns_zero(self):
+        """Test that whitespace-only prompt returns 0.0."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance("   \n\t  ", "Valid workflow text")
+
+        assert score == 0.0
+
+    def test_non_string_prompt_type_returns_zero(self):
+        """Test that non-string prompt (int) returns 0.0 and logs warning."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance(12345, "Valid workflow text")
+
+        assert score == 0.0
+
+    def test_non_string_workflow_text_type_returns_zero(self):
+        """Test that non-string workflow_text (dict) returns 0.0 and logs warning."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        score = _calculate_semantic_relevance("Valid prompt", {"key": "value"})
+
+        assert score == 0.0
+
+    def test_unicode_and_emoji_handled_correctly(self):
+        """Test that Unicode and emoji are processed correctly."""
+        from contexts.workflow.voter import _calculate_semantic_relevance
+
+        prompt = "I need automation for 文档审查 🚀"
+        workflow_text = "Document 文档审查 automation solution 🚀"
+
+        score = _calculate_semantic_relevance(prompt, workflow_text)
+
+        assert score >= 0.0
+        assert score <= 1.0
+
 
 class TestRankWorkflowsByScore:
     """Tests for rank_workflows_by_score function."""

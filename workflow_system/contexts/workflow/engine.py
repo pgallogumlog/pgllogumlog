@@ -384,6 +384,7 @@ STYLE HINT: {style}"""
             valid_count=valid_count,
             invalid_count=invalid_count,
             retry_count=retry_count,
+            normalized_prompt=normalized_prompt,
         )
 
     async def _retry_single_response(

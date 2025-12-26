@@ -270,6 +270,7 @@ def count_votes(
     valid_count: int = 0,
     invalid_count: int = 0,
     retry_count: int = 0,
+    normalized_prompt: str | None = None,
 ) -> ConsensusResult:
     """
     Aggregate votes from multiple self-consistency responses.
@@ -277,6 +278,12 @@ def count_votes(
     Args:
         responses: List of AI response strings
         min_consensus_votes: Minimum votes required for consensus
+        valid_count: Number of valid responses
+        invalid_count: Number of invalid responses
+        retry_count: Number of retried responses
+        normalized_prompt: Optional normalized prompt for semantic relevance in fallback.
+                          Typically the normalized/rewritten prompt from the input rewriter.
+                          Used to boost workflows that match the user's question.
 
     Returns:
         ConsensusResult with final answer and statistics
@@ -377,7 +384,7 @@ def count_votes(
                 break
     elif per_response_data:
         # Fallback: use ranked scoring instead of just first response
-        fallback_name, all_workflows = rank_workflows_by_score(per_response_data)
+        fallback_name, all_workflows = rank_workflows_by_score(per_response_data, normalized_prompt)
         canonical_final_answer = fallback_name
 
         # Calculate fallback score for the best workflow
@@ -393,7 +400,7 @@ def count_votes(
                     break
 
             if best_workflow_raw:
-                fallback_score = score_workflow(best_workflow_raw)
+                fallback_score = score_workflow(best_workflow_raw, normalized_prompt)
 
         logger.info(
             "consensus_fallback_activated",
@@ -478,36 +485,131 @@ def _parse_list(value: str) -> list[str]:
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
-def score_workflow(workflow: dict) -> float:
+def _calculate_semantic_relevance(prompt: str, workflow_text: str) -> float:
     """
-    Score a workflow based on feasibility, impact, and complexity.
+    Calculate semantic relevance between user's prompt and workflow.
 
-    Weighted scoring:
-    - Feasibility: 40% (easier to implement = higher priority)
-    - Impact/ROI: 30% (business value indicators)
-    - Complexity: 30% (lower complexity = higher score)
+    Uses keyword overlap with stopword filtering.
+
+    Args:
+        prompt: User's original question
+        workflow_text: Workflow name + objective + problems combined
+
+    Returns:
+        Relevance score from 0.0 to 1.0
+    """
+    # Validate inputs - type and emptiness
+    if not isinstance(prompt, str) or not isinstance(workflow_text, str):
+        logger.warning(
+            "semantic_relevance_invalid_input_type",
+            prompt_type=type(prompt).__name__,
+            workflow_text_type=type(workflow_text).__name__,
+        )
+        return 0.0
+
+    # Handle empty or whitespace-only inputs
+    if not prompt.strip() or not workflow_text.strip():
+        return 0.0
+
+    # Common stopwords to ignore
+    stopwords = {
+        "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
+        "of", "with", "by", "from", "as", "is", "are", "was", "were", "be",
+        "been", "being", "have", "has", "had", "do", "does", "did", "will",
+        "would", "could", "should", "may", "might", "can", "i", "you", "we",
+        "they", "them", "their", "this", "that", "these", "those", "what",
+        "which", "who", "when", "where", "why", "how", "need", "help", "want",
+    }
+
+    # Extract keywords from prompt (normalize and filter stopwords)
+    prompt_lower = prompt.lower()
+    prompt_words = set(
+        word.strip(".,!?;:()[]{}\"'")
+        for word in prompt_lower.split()
+        if len(word) > 2 and word not in stopwords
+    )
+
+    # Extract keywords from workflow text
+    workflow_lower = workflow_text.lower()
+    workflow_words = set(
+        word.strip(".,!?;:()[]{}\"'")
+        for word in workflow_lower.split()
+        if len(word) > 2 and word not in stopwords
+    )
+
+    if not prompt_words:
+        return 0.0
+
+    # Calculate overlap ratio (Jaccard similarity)
+    intersection = prompt_words & workflow_words
+    union = prompt_words | workflow_words
+
+    if not union:
+        return 0.0
+
+    jaccard = len(intersection) / len(union)
+
+    # Also calculate what percentage of prompt keywords are found
+    coverage = len(intersection) / len(prompt_words)
+
+    # Blend both metrics (favor coverage - did we address the question?)
+    relevance = (jaccard * 0.3) + (coverage * 0.7)
+
+    return min(relevance, 1.0)
+
+
+def score_workflow(workflow: dict, normalized_prompt: str | None = None) -> float:
+    """
+    Score a workflow based on feasibility, impact, complexity, and semantic relevance.
+
+    Weighted scoring (when semantic relevance is used):
+    - Feasibility: 35% (easier to implement = higher priority)
+    - Impact/ROI: 25% (business value indicators)
+    - Complexity: 20% (lower complexity = higher score)
+    - Semantic Relevance: 20% (matches user's question)
+
+    Weighted scoring (when no prompt provided):
+    - Feasibility: 40%
+    - Impact/ROI: 30%
+    - Complexity: 30%
 
     Args:
         workflow: Raw workflow dict with feasibility field
+        normalized_prompt: Optional normalized prompt for semantic matching.
+                          Typically the normalized prompt from the input rewriter.
+                          Used to boost workflows that address the user's question.
 
     Returns:
         Score from 0.0 to 100.0
     """
     score = 0.0
 
-    # Feasibility score (40% weight)
+    # Check if semantic relevance will be used
+    use_semantic = normalized_prompt and normalized_prompt.strip()
+
+    # Adjust weights based on whether semantic relevance is used
+    if use_semantic:
+        feasibility_high, feasibility_med, feasibility_low, feasibility_default = 35.0, 22.0, 9.0, 17.0
+        impact_high, impact_med, impact_default = 25.0, 17.0, 12.0
+        complexity_simple, complexity_complex, complexity_default = 20.0, 7.0, 13.0
+    else:
+        # Original weights (sum to 100%)
+        feasibility_high, feasibility_med, feasibility_low, feasibility_default = 40.0, 25.0, 10.0, 20.0
+        impact_high, impact_med, impact_default = 30.0, 20.0, 15.0
+        complexity_simple, complexity_complex, complexity_default = 30.0, 10.0, 20.0
+
+    # Feasibility score
     feasibility = workflow.get("feasibility", "").lower()
     if "high" in feasibility or "easy" in feasibility:
-        score += 40.0
+        score += feasibility_high
     elif "medium" in feasibility or "moderate" in feasibility:
-        score += 25.0
+        score += feasibility_med
     elif "low" in feasibility or "hard" in feasibility or "difficult" in feasibility:
-        score += 10.0
+        score += feasibility_low
     else:
-        score += 20.0  # Default if unclear
+        score += feasibility_default
 
-    # Impact/ROI score (30% weight)
-    # Higher impact keywords in objective or problems
+    # Impact/ROI score
     objective = workflow.get("objective", "").lower()
     problems = workflow.get("problems", "").lower()
 
@@ -516,32 +618,42 @@ def score_workflow(workflow: dict) -> float:
 
     impact_text = f"{objective} {problems}"
     if any(keyword in impact_text for keyword in high_impact_keywords):
-        score += 30.0
+        score += impact_high
     elif any(keyword in impact_text for keyword in medium_impact_keywords):
-        score += 20.0
+        score += impact_med
     else:
-        score += 15.0  # Default
+        score += impact_default
 
-    # Complexity score (30% weight) - simpler is better
+    # Complexity score - simpler is better
     how_it_works = workflow.get("how_it_works", "").lower()
     tools = workflow.get("tools", "").lower()
 
-    # Complex indicators
     complex_keywords = ["custom", "complex", "advanced", "integration", "multiple systems"]
     simple_keywords = ["simple", "straightforward", "existing", "standard", "template"]
 
     complexity_text = f"{how_it_works} {tools}"
     if any(keyword in complexity_text for keyword in simple_keywords):
-        score += 30.0
+        score += complexity_simple
     elif any(keyword in complexity_text for keyword in complex_keywords):
-        score += 10.0
+        score += complexity_complex
     else:
-        score += 20.0  # Default
+        score += complexity_default
+
+    # Semantic Relevance score (20% weight) - only if normalized_prompt provided
+    if use_semantic:
+        relevance_score = _calculate_semantic_relevance(
+            prompt=normalized_prompt,
+            workflow_text=f"{workflow.get('name', '')} {objective} {problems}",
+        )
+        score += relevance_score * 20.0  # Scale 0-1 to 0-20 points
 
     return score
 
 
-def rank_workflows_by_score(all_responses_data: list[VoteResult]) -> tuple[str, list[WorkflowRecommendation]]:
+def rank_workflows_by_score(
+    all_responses_data: list[VoteResult],
+    normalized_prompt: str | None = None,
+) -> tuple[str, list[WorkflowRecommendation]]:
     """
     Rank all workflows from all responses by weighted score.
 
@@ -549,6 +661,8 @@ def rank_workflows_by_score(all_responses_data: list[VoteResult]) -> tuple[str, 
 
     Args:
         all_responses_data: List of VoteResult objects from all responses
+        normalized_prompt: Optional normalized prompt for semantic relevance.
+                          Typically the normalized prompt from the input rewriter.
 
     Returns:
         Tuple of (best_workflow_name, all_workflows_sorted)
@@ -561,7 +675,7 @@ def rank_workflows_by_score(all_responses_data: list[VoteResult]) -> tuple[str, 
 
     for result in all_responses_data:
         for workflow in result.workflows:
-            score = score_workflow(workflow)
+            score = score_workflow(workflow, normalized_prompt)
             scored_workflows.append((score, workflow))
 
     # Sort by score descending
@@ -582,6 +696,7 @@ def rank_workflows_by_score(all_responses_data: list[VoteResult]) -> tuple[str, 
         best_workflow=best_name,
         best_score=round(scored_workflows[0][0], 2),
         total_workflows=len(scored_workflows),
+        semantic_matching=normalized_prompt is not None,
     )
 
     return best_name, all_workflows
