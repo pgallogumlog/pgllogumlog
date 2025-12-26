@@ -11,6 +11,9 @@ from contexts.workflow.voter import (
     normalize_name,
     parse_markdown_table,
     parse_response,
+    rank_workflows_by_score,
+    score_workflow,
+    VoteResult,
 )
 
 
@@ -420,3 +423,424 @@ The answer is {name}"""
         assert result.fuzzy_matches == 2
         assert result.total_responses == 3
         assert result.votes_for_winner == 3
+
+
+class TestScoreWorkflow:
+    """Tests for score_workflow function."""
+
+    def test_high_feasibility_workflow(self):
+        """Test workflow with high feasibility scores highest in feasibility component."""
+        workflow = {
+            "name": "Test Workflow",
+            "feasibility": "High",
+            "objective": "Automate tickets",
+            "problems": "High volume",
+            "how_it_works": "Simple chatbot",
+            "tools": "n8n",
+        }
+        score = score_workflow(workflow)
+        # High feasibility (40) + default impact (15) + default complexity (20) = 75
+        assert score >= 70.0
+
+    def test_low_feasibility_workflow(self):
+        """Test workflow with low feasibility scores lower."""
+        workflow = {
+            "name": "Test Workflow",
+            "feasibility": "Low",
+            "objective": "Complex integration",
+            "problems": "Legacy systems",
+            "how_it_works": "Custom integration",
+            "tools": "Multiple systems",
+        }
+        score = score_workflow(workflow)
+        # Low feasibility (10) + low impact (15) + complex (10) = 35
+        assert score <= 40.0
+
+    def test_high_impact_keywords(self):
+        """Test that high impact keywords boost score."""
+        workflow = {
+            "name": "Revenue Generator",
+            "feasibility": "Medium",
+            "objective": "Increase revenue significantly",
+            "problems": "Critical cost savings needed",
+            "how_it_works": "AI automation",
+            "tools": "Standard",
+        }
+        score = score_workflow(workflow)
+        # Medium feasibility (25) + high impact (30) + default complexity (20) = 75
+        assert score >= 70.0
+
+    def test_simple_complexity_boost(self):
+        """Test that simple/straightforward keywords boost score."""
+        workflow = {
+            "name": "Simple Bot",
+            "feasibility": "Medium",
+            "objective": "Automate",
+            "problems": "Manual work",
+            "how_it_works": "Simple template-based solution",
+            "tools": "Existing tools",
+        }
+        score = score_workflow(workflow)
+        # Medium feasibility (25) + default impact (15) + simple complexity (30) = 70
+        assert score >= 65.0
+
+    def test_complex_workflow_penalty(self):
+        """Test that complex workflows score lower."""
+        workflow = {
+            "name": "Complex System",
+            "feasibility": "Medium",
+            "objective": "Advanced integration",
+            "problems": "Complex requirements",
+            "how_it_works": "Custom advanced solution with multiple integrations",
+            "tools": "Complex",
+        }
+        score = score_workflow(workflow)
+        # Medium feasibility (25) + default impact (15) + complex (10) = 50
+        assert score <= 55.0
+
+    def test_empty_workflow_gets_default_score(self):
+        """Test that empty workflow dict gets default scoring."""
+        workflow = {}
+        score = score_workflow(workflow)
+        # Default feasibility (20) + default impact (15) + default complexity (20) = 55
+        assert 50.0 <= score <= 60.0
+
+
+class TestRankWorkflowsByScore:
+    """Tests for rank_workflows_by_score function."""
+
+    def test_ranks_by_combined_score(self):
+        """Test that workflows are ranked by total score."""
+        responses = [
+            VoteResult(
+                answer="High Feasibility Bot",
+                workflows=[
+                    {
+                        "name": "High Feasibility Bot",
+                        "feasibility": "High",
+                        "objective": "Critical revenue generation",
+                        "problems": "Significant cost",
+                        "how_it_works": "Simple automation",
+                        "tools": "Standard",
+                        "metrics": "ROI",
+                    }
+                ],
+            ),
+            VoteResult(
+                answer="Low Feasibility Complex",
+                workflows=[
+                    {
+                        "name": "Low Feasibility Complex",
+                        "feasibility": "Low",
+                        "objective": "Minor improvement",
+                        "problems": "Small issue",
+                        "how_it_works": "Complex custom integration",
+                        "tools": "Multiple systems",
+                        "metrics": "Accuracy",
+                    }
+                ],
+            ),
+        ]
+
+        best_name, all_workflows = rank_workflows_by_score(responses)
+
+        # High feasibility workflow should win
+        assert best_name == "High Feasibility Bot"
+        assert len(all_workflows) == 2
+        # First workflow should be the highest scored
+        assert all_workflows[0].name == "High Feasibility Bot"
+
+    def test_handles_empty_responses(self):
+        """Test graceful handling of empty responses."""
+        best_name, all_workflows = rank_workflows_by_score([])
+
+        assert best_name == "No consensus"
+        assert all_workflows == []
+
+    def test_handles_responses_with_no_workflows(self):
+        """Test handling of responses that have empty workflow lists."""
+        responses = [
+            VoteResult(answer="Test", workflows=[]),
+            VoteResult(answer="Test2", workflows=[]),
+        ]
+
+        best_name, all_workflows = rank_workflows_by_score(responses)
+
+        assert best_name == "No consensus"
+        assert all_workflows == []
+
+    def test_scores_multiple_workflows_per_response(self):
+        """Test that all workflows from all responses are scored."""
+        responses = [
+            VoteResult(
+                answer="Workflow A",
+                workflows=[
+                    {
+                        "name": "Workflow A",
+                        "feasibility": "High",
+                        "objective": "Important",
+                        "problems": "Volume",
+                        "how_it_works": "Simple",
+                        "tools": "n8n",
+                        "metrics": "Time",
+                    },
+                    {
+                        "name": "Workflow B",
+                        "feasibility": "Medium",
+                        "objective": "Useful",
+                        "problems": "Manual",
+                        "how_it_works": "Standard",
+                        "tools": "Zapier",
+                        "metrics": "Accuracy",
+                    },
+                ],
+            ),
+            VoteResult(
+                answer="Workflow C",
+                workflows=[
+                    {
+                        "name": "Workflow C",
+                        "feasibility": "Low",
+                        "objective": "Nice to have",
+                        "problems": "Minor",
+                        "how_it_works": "Complex",
+                        "tools": "Custom",
+                        "metrics": "Speed",
+                    }
+                ],
+            ),
+        ]
+
+        best_name, all_workflows = rank_workflows_by_score(responses)
+
+        # Should have all 3 workflows
+        assert len(all_workflows) == 3
+        # Workflow A should rank highest (high feasibility)
+        assert best_name == "Workflow A"
+
+
+class TestCountVotesFallback:
+    """Tests for fallback scoring when consensus fails."""
+
+    def test_uses_ranked_fallback_when_no_consensus(self):
+        """Test that ranked scoring is used when voting fails to reach consensus."""
+        table_template = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | {name} | {objective} | {problems} | {how} | {tools} | {metrics} | {feasibility} |
+
+The answer is {name}"""
+
+        # Three different workflows - no consensus possible
+        responses = [
+            table_template.format(
+                name="High Value Bot",
+                objective="Critical revenue generation",
+                problems="Significant cost savings",
+                how="Simple automation",
+                tools="n8n",
+                metrics="ROI",
+                feasibility="High",
+            ),
+            table_template.format(
+                name="Medium Workflow",
+                objective="Useful improvement",
+                problems="Manual work",
+                how="Standard process",
+                tools="Zapier",
+                metrics="Time",
+                feasibility="Medium",
+            ),
+            table_template.format(
+                name="Complex System",
+                objective="Minor optimization",
+                problems="Small issue",
+                how="Complex custom integration",
+                tools="Multiple systems",
+                metrics="Accuracy",
+                feasibility="Low",
+            ),
+        ]
+
+        result = count_votes(responses, min_consensus_votes=3)
+
+        # Should NOT have consensus (3 different answers)
+        assert result.had_consensus is False
+
+        # Should use ranked fallback and pick highest-scored workflow
+        # "High Value Bot" has: High feasibility + high impact keywords + simple
+        assert result.final_answer == "High Value Bot"
+
+        # Should have all workflows available
+        assert len(result.all_workflows) >= 3
+
+        # NEW: Metrics should be overridden with fallback scoring confidence
+        # High Value Bot scores: High feasibility (40) + high impact (30) + simple (30) = 100
+        # Capped at 85%
+        assert result.confidence_percent == 85
+        assert result.consensus_strength == "Fallback - High Confidence"
+
+    def test_fallback_metrics_override_with_high_score(self):
+        """Test that fallback overrides metrics with high confidence when score is high."""
+        table_template = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | {name} | {objective} | {problems} | {how} | {tools} | {metrics} | {feasibility} |
+
+The answer is {name}"""
+
+        # All different answers - no consensus (1/5 votes each = 20% voting confidence)
+        # Use sufficiently different names to avoid fuzzy matching
+        responses = [
+            table_template.format(
+                name="Premium Revenue Bot",
+                objective="Major revenue impact",
+                problems="Critical efficiency gains",
+                how="Simple template",
+                tools="Standard",
+                metrics="ROI",
+                feasibility="High",
+            ),
+            table_template.format(
+                name="Data Processing Engine",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Time",
+                feasibility="Low",
+            ),
+            table_template.format(
+                name="Email Automation System",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Speed",
+                feasibility="Low",
+            ),
+            table_template.format(
+                name="Lead Scoring Tool",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Accuracy",
+                feasibility="Low",
+            ),
+            table_template.format(
+                name="Report Generator",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Quality",
+                feasibility="Low",
+            ),
+        ]
+
+        result = count_votes(responses, min_consensus_votes=3)
+
+        # Voting confidence would be 20% (1/5)
+        # But fallback should override with high scoring confidence
+        assert result.had_consensus is False
+        assert result.final_answer == "Premium Revenue Bot"
+
+        # Premium Revenue Bot: High (40) + Major/Critical (30) + Simple (30) = 100, capped at 85
+        assert result.confidence_percent == 85
+        assert result.consensus_strength == "Fallback - High Confidence"
+
+    def test_fallback_metrics_override_with_medium_score(self):
+        """Test that fallback shows medium confidence for medium-scored workflows."""
+        table_template = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | {name} | {objective} | {problems} | {how} | {tools} | {metrics} | {feasibility} |
+
+The answer is {name}"""
+
+        # All medium-quality workflows, no consensus
+        # Use different names to avoid fuzzy matching
+        # Design workflows to score in medium range (60-74)
+        responses = [
+            table_template.format(
+                name="Invoice Processing",
+                objective="Process invoices",  # No high-impact keywords
+                problems="Manual entry",
+                how="Automation workflow",  # Neutral complexity
+                tools="Zapier",
+                metrics="Time",
+                feasibility="Medium",  # 25 points
+            ),
+            table_template.format(
+                name="Customer Onboarding",
+                objective="Onboard customers",  # No high-impact keywords
+                problems="Process time",
+                how="Automated flow",  # Neutral complexity
+                tools="n8n",
+                metrics="Speed",
+                feasibility="Medium",  # 25 points
+            ),
+            table_template.format(
+                name="Report Distribution",
+                objective="Send reports",  # No high-impact keywords
+                problems="Manual distribution",
+                how="Scheduled automation",  # Neutral complexity
+                tools="Make",
+                metrics="Efficiency",
+                feasibility="Medium",  # 25 points
+            ),
+        ]
+
+        result = count_votes(responses, min_consensus_votes=3)
+
+        assert result.had_consensus is False
+
+        # Best workflow scores: Medium (25) + default impact (15) + default complexity (20) = 60
+        assert 60 <= result.confidence_percent <= 74
+        assert result.consensus_strength == "Fallback - Medium Confidence"
+
+    def test_fallback_confidence_capped_at_85_percent(self):
+        """Test that fallback confidence is capped at 85% even if score is higher."""
+        table_template = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | {name} | {objective} | {problems} | {how} | {tools} | {metrics} | {feasibility} |
+
+The answer is {name}"""
+
+        # Perfect workflow: High + Critical + Simple = 100 points
+        responses = [
+            table_template.format(
+                name="Perfect Workflow",
+                objective="Critical revenue generation with significant cost savings",
+                problems="Major efficiency gains",
+                how="Simple straightforward template",
+                tools="Existing standard tools",
+                metrics="ROI",
+                feasibility="High",
+            ),
+            table_template.format(
+                name="Bad Workflow",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Time",
+                feasibility="Low",
+            ),
+            table_template.format(
+                name="Another Bad",
+                objective="Minor",
+                problems="Small",
+                how="Complex",
+                tools="Custom",
+                metrics="Speed",
+                feasibility="Low",
+            ),
+        ]
+
+        result = count_votes(responses, min_consensus_votes=3)
+
+        assert result.had_consensus is False
+        assert result.final_answer == "Perfect Workflow"
+
+        # Even though score would be 100, cap at 85
+        assert result.confidence_percent == 85
+        assert result.consensus_strength == "Fallback - High Confidence"

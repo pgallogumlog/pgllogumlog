@@ -361,9 +361,10 @@ def count_votes(
             required=min_consensus_votes,
         )
 
-    # Get workflows from winning response (or first response as fallback)
+    # Get workflows from winning response (or use ranked fallback)
     all_workflows: list[WorkflowRecommendation] = []
     canonical_final_answer = final_answer
+    fallback_score: float | None = None
 
     if had_consensus:
         winner_key = normalize_name(final_answer)
@@ -375,8 +376,61 @@ def count_votes(
                     canonical_final_answer = all_workflows[0].name
                 break
     elif per_response_data:
-        # Fallback: use first response's workflows
-        all_workflows = _convert_workflows(per_response_data[0].workflows)
+        # Fallback: use ranked scoring instead of just first response
+        fallback_name, all_workflows = rank_workflows_by_score(per_response_data)
+        canonical_final_answer = fallback_name
+
+        # Calculate fallback score for the best workflow
+        if all_workflows:
+            # Get the best workflow's raw dict to score it
+            best_workflow_raw = None
+            for result in per_response_data:
+                for wf in result.workflows:
+                    if normalize_name(wf.get("name", "")) == normalize_name(fallback_name):
+                        best_workflow_raw = wf
+                        break
+                if best_workflow_raw:
+                    break
+
+            if best_workflow_raw:
+                fallback_score = score_workflow(best_workflow_raw)
+
+        logger.info(
+            "consensus_fallback_activated",
+            method="ranked_scoring",
+            selected_workflow=fallback_name,
+            total_workflows_scored=len(all_workflows),
+            fallback_score=round(fallback_score, 2) if fallback_score else None,
+        )
+
+    # Preserve original voting metrics for diagnostic logging
+    original_confidence = confidence_percent
+    original_strength = consensus_strength
+
+    # Override metrics when fallback scoring is used
+    if fallback_score is not None:
+        # Cap fallback confidence at 85% (not from voting)
+        capped_score = min(fallback_score, 85.0)
+        confidence_percent = int(capped_score)
+
+        # Update consensus strength to reflect fallback method
+        if confidence_percent >= 75:
+            consensus_strength = "Fallback - High Confidence"
+        elif confidence_percent >= 60:
+            consensus_strength = "Fallback - Medium Confidence"
+        else:
+            consensus_strength = "Fallback - Low Confidence"
+
+        # Diagnostic logging to preserve voting metrics
+        logger.info(
+            "consensus_metrics_override",
+            original_voting_confidence=original_confidence,
+            original_voting_strength=original_strength,
+            fallback_confidence=confidence_percent,
+            fallback_strength=consensus_strength,
+            raw_score=round(fallback_score, 2),
+            capped_at_85=fallback_score > 85.0,
+        )
 
     return ConsensusResult(
         final_answer=canonical_final_answer,
@@ -422,3 +476,112 @@ def _parse_list(value: str) -> list[str]:
     if not value:
         return []
     return [v.strip() for v in value.split(",") if v.strip()]
+
+
+def score_workflow(workflow: dict) -> float:
+    """
+    Score a workflow based on feasibility, impact, and complexity.
+
+    Weighted scoring:
+    - Feasibility: 40% (easier to implement = higher priority)
+    - Impact/ROI: 30% (business value indicators)
+    - Complexity: 30% (lower complexity = higher score)
+
+    Args:
+        workflow: Raw workflow dict with feasibility field
+
+    Returns:
+        Score from 0.0 to 100.0
+    """
+    score = 0.0
+
+    # Feasibility score (40% weight)
+    feasibility = workflow.get("feasibility", "").lower()
+    if "high" in feasibility or "easy" in feasibility:
+        score += 40.0
+    elif "medium" in feasibility or "moderate" in feasibility:
+        score += 25.0
+    elif "low" in feasibility or "hard" in feasibility or "difficult" in feasibility:
+        score += 10.0
+    else:
+        score += 20.0  # Default if unclear
+
+    # Impact/ROI score (30% weight)
+    # Higher impact keywords in objective or problems
+    objective = workflow.get("objective", "").lower()
+    problems = workflow.get("problems", "").lower()
+
+    high_impact_keywords = ["critical", "major", "significant", "revenue", "cost savings", "efficiency"]
+    medium_impact_keywords = ["important", "helpful", "useful", "improve"]
+
+    impact_text = f"{objective} {problems}"
+    if any(keyword in impact_text for keyword in high_impact_keywords):
+        score += 30.0
+    elif any(keyword in impact_text for keyword in medium_impact_keywords):
+        score += 20.0
+    else:
+        score += 15.0  # Default
+
+    # Complexity score (30% weight) - simpler is better
+    how_it_works = workflow.get("how_it_works", "").lower()
+    tools = workflow.get("tools", "").lower()
+
+    # Complex indicators
+    complex_keywords = ["custom", "complex", "advanced", "integration", "multiple systems"]
+    simple_keywords = ["simple", "straightforward", "existing", "standard", "template"]
+
+    complexity_text = f"{how_it_works} {tools}"
+    if any(keyword in complexity_text for keyword in simple_keywords):
+        score += 30.0
+    elif any(keyword in complexity_text for keyword in complex_keywords):
+        score += 10.0
+    else:
+        score += 20.0  # Default
+
+    return score
+
+
+def rank_workflows_by_score(all_responses_data: list[VoteResult]) -> tuple[str, list[WorkflowRecommendation]]:
+    """
+    Rank all workflows from all responses by weighted score.
+
+    Used as fallback when consensus voting fails.
+
+    Args:
+        all_responses_data: List of VoteResult objects from all responses
+
+    Returns:
+        Tuple of (best_workflow_name, all_workflows_sorted)
+    """
+    if not all_responses_data:
+        return "No consensus", []
+
+    # Collect all workflows from all responses
+    scored_workflows: list[tuple[float, dict]] = []
+
+    for result in all_responses_data:
+        for workflow in result.workflows:
+            score = score_workflow(workflow)
+            scored_workflows.append((score, workflow))
+
+    # Sort by score descending
+    scored_workflows.sort(key=lambda x: x[0], reverse=True)
+
+    if not scored_workflows:
+        return "No consensus", []
+
+    # Get best workflow name
+    best_workflow = scored_workflows[0][1]
+    best_name = best_workflow.get("name", "No consensus")
+
+    # Convert all workflows to WorkflowRecommendation objects
+    all_workflows = _convert_workflows([w for _, w in scored_workflows])
+
+    logger.info(
+        "fallback_ranked_scoring",
+        best_workflow=best_name,
+        best_score=round(scored_workflows[0][0], 2),
+        total_workflows=len(scored_workflows),
+    )
+
+    return best_name, all_workflows
