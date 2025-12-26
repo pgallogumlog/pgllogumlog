@@ -88,7 +88,11 @@ The answer is Support Bot"""
         assert result is None
 
     def test_answer_with_period(self):
-        response = "The answer is Customer Support Bot."
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is Customer Support Bot."""
         result = parse_response(response)
         assert result is not None
         assert result.answer == "Customer Support Bot"
@@ -98,10 +102,16 @@ class TestCountVotes:
     """Tests for count_votes function."""
 
     def test_unanimous_consensus(self):
+        table_response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is Support Bot"""
+
         responses = [
-            "The answer is Support Bot",
-            "The answer is Support Bot",
-            "The answer is Support Bot",
+            table_response,
+            table_response,
+            table_response,
         ]
 
         result = count_votes(responses, min_consensus_votes=2)
@@ -114,10 +124,22 @@ class TestCountVotes:
         assert result.had_consensus is True
 
     def test_split_vote_with_consensus(self):
+        support_bot = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is Support Bot"""
+
+        lead_scoring = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Lead Scoring | Prioritize leads | Manual | ML model | Zapier | Conversion | Medium |
+
+The answer is Lead Scoring"""
+
         responses = [
-            "The answer is Support Bot",
-            "The answer is Support Bot",
-            "The answer is Lead Scoring",
+            support_bot,
+            support_bot,
+            lead_scoring,
         ]
 
         result = count_votes(responses, min_consensus_votes=2)
@@ -160,12 +182,18 @@ class TestCountVotes:
         assert result.had_consensus is False
 
     def test_moderate_consensus(self):
+        table_template = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | {name} | {objective} | {problems} | {how} | {tools} | {metrics} | {feasibility} |
+
+The answer is {name}"""
+
         responses = [
-            "The answer is Support Bot",
-            "The answer is Support Bot",
-            "The answer is Lead Scoring",
-            "The answer is Report Gen",
-            "The answer is Email Triage",
+            table_template.format(name="Support Bot", objective="Automate", problems="Volume", how="AI", tools="n8n", metrics="Time", feasibility="High"),
+            table_template.format(name="Support Bot", objective="Automate", problems="Volume", how="AI", tools="n8n", metrics="Time", feasibility="High"),
+            table_template.format(name="Lead Scoring", objective="Prioritize", problems="Manual", how="ML", tools="Zapier", metrics="Conv", feasibility="Med"),
+            table_template.format(name="Report Gen", objective="Automate", problems="Time", how="AI", tools="Make", metrics="Speed", feasibility="High"),
+            table_template.format(name="Email Triage", objective="Sort", problems="Volume", how="AI", tools="n8n", metrics="Accuracy", feasibility="Med"),
         ]
 
         result = count_votes(responses, min_consensus_votes=2)

@@ -24,6 +24,45 @@ class VoteResult:
     workflows: list[dict]
 
 
+def validate_response_has_table(response: str) -> tuple[bool, str]:
+    """
+    Validate that a response contains a valid markdown table.
+
+    Checks for:
+    - Table header with expected columns
+    - Separator row
+    - At least one data row
+    - "The answer is" line
+
+    Args:
+        response: Raw AI response text
+
+    Returns:
+        (is_valid, error_message) tuple
+    """
+    if not response:
+        return False, "Empty response"
+
+    # Check for table header marker
+    if "| #" not in response or "Workflow Name" not in response:
+        return False, "Missing table header (no '| #' or 'Workflow Name' found)"
+
+    # Check for separator row (|---|---|...)
+    if not re.search(r'\|[-\s]+\|[-\s]+\|', response):
+        return False, "Missing table separator row"
+
+    # Count table rows (lines starting with |)
+    table_lines = [line for line in response.split('\n') if line.strip().startswith('|')]
+    if len(table_lines) < 3:  # header + separator + at least 1 data row
+        return False, f"Incomplete table: only {len(table_lines)} rows found (need at least 3)"
+
+    # Check for "The answer is" line
+    if not re.search(r"The answer is[:\s]", response, re.IGNORECASE):
+        return False, "Missing 'The answer is' line"
+
+    return True, ""
+
+
 def normalize_name(name: str) -> str:
     """
     Normalize workflow name for voting comparison.
@@ -81,6 +120,16 @@ def parse_response(response: str) -> VoteResult | None:
     """
     if not response:
         logger.debug("vote_counter_empty_response")
+        return None
+
+    # Validate response has required structure before parsing
+    is_valid, error_msg = validate_response_has_table(response)
+    if not is_valid:
+        logger.warning(
+            "vote_counter_invalid_response_structure",
+            error=error_msg,
+            response_preview=response[:200] if response else ""
+        )
         return None
 
     # Extract the answer: "The answer is <Workflow Name>"
@@ -154,6 +203,9 @@ def parse_markdown_table(response: str) -> list[dict]:
 def count_votes(
     responses: list[str],
     min_consensus_votes: int = 2,
+    valid_count: int = 0,
+    invalid_count: int = 0,
+    retry_count: int = 0,
 ) -> ConsensusResult:
     """
     Aggregate votes from multiple self-consistency responses.
@@ -246,6 +298,10 @@ def count_votes(
         consensus_strength=consensus_strength,
         had_consensus=had_consensus,
         all_workflows=all_workflows,
+        valid_responses=valid_count,
+        invalid_responses=invalid_count,
+        retried_responses=retry_count,
+        fuzzy_matches=0,  # Will be updated in Phase 4
     )
 
 

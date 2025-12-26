@@ -39,6 +39,11 @@ class ConsensusResult:
     consensus_strength: str  # "Strong", "Moderate", "Weak"
     had_consensus: bool
     all_workflows: list[WorkflowRecommendation]
+    # Quality metrics (Phase 3+)
+    valid_responses: int = 0
+    invalid_responses: int = 0
+    retried_responses: int = 0
+    fuzzy_matches: int = 0  # For Phase 4
 
 
 @dataclass
