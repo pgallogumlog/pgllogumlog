@@ -210,6 +210,28 @@ The answer is Customer Support Bot."""
         assert result is not None
         assert result.answer == "Customer Support Bot"
 
+    def test_answer_with_colon(self):
+        """Test parsing 'The answer is: Workflow Name' format (with colon)."""
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Support Bot | Automate tickets | High volume | AI chatbot | n8n | Response time | High |
+
+The answer is: Support Bot"""
+        result = parse_response(response)
+        assert result is not None
+        assert result.answer == "Support Bot"
+
+    def test_answer_with_colon_no_space(self):
+        """Test parsing 'The answer is:Workflow Name' format (colon without space)."""
+        response = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|----------------------|--------------|-------------------|-------------|-------------|
+| 1 | Lead Scoring System | Prioritize leads | Manual work | ML model | Zapier | Conversion | Medium |
+
+The answer is:Lead Scoring System"""
+        result = parse_response(response)
+        assert result is not None
+        assert result.answer == "Lead Scoring System"
+
 
 class TestCountVotes:
     """Tests for count_votes function."""

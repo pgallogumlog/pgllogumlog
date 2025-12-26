@@ -82,7 +82,7 @@ REQUIRED SECTION 1: MARKDOWN TABLE (MUST BE FIRST)
 | 5 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
 
 REQUIRED SECTION 2: YOUR VOTE (MUST BE AFTER TABLE)
-The answer is [Your #1 Workflow Name from row 1]
+The answer is: [Your #1 Workflow Name from row 1]
 </output_structure>
 
 MANDATORY TABLE RULES:
@@ -114,7 +114,7 @@ CORRECT EXAMPLE:
 | 1 | Customer Support Automation | Reduce response time | High ticket volume | AI chatbot with escalation | n8n, Claude API | Avg response time | High |
 | 2 | Lead Scoring System | Prioritize sales leads | Manual qualification | ML scoring model | Zapier, Airtable | Conversion rate | Medium |
 
-The answer is Customer Support Automation
+The answer is: Customer Support Automation
 
 INCORRECT EXAMPLES (DO NOT DO THIS):
 ❌ The answer is **Customer Support Automation**  (has markdown)
