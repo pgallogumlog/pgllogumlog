@@ -195,8 +195,8 @@ def parse_response(response: str) -> VoteResult | None:
         )
         return None
 
-    # Extract the answer: "The answer is <Workflow Name>"
-    answer_match = re.search(r"The answer is\s+(.+?)([.\n\r]+|$)", response, re.IGNORECASE)
+    # Extract the answer: "The answer is: <Workflow Name>" or "The answer is <Workflow Name>"
+    answer_match = re.search(r"The answer is[:\s]+(.+?)(?:[.\n\r]+|$)", response, re.IGNORECASE)
     answer_name = ""
     if answer_match and answer_match.group(1):
         answer_name = answer_match.group(1).strip()

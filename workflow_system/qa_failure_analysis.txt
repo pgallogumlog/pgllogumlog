@@ -1,0 +1,214 @@
+QA FAILURE ANALYSIS REPORT
+====================================================================================================
+
+Total tests: 15
+Passes: 4 (26.7%)
+Failures: 11 (73.3%)
+
+
+FAILURE DETAILS
+====================================================================================================
+
+FAILURE 1
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.61553
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism failed with only 20% confidence and 'No consensus' result, indicating fundamental workflow logic breakdown
+
+Details: The workflow's consensus mechanism has critically failed, producing a 'No consensus' result with only 20% confidence and weak consensus strength. This indicates that the core decision-making logic is broken, as the system cannot reliably determine which AI workflow recommendations to present to the client. With only 1 vote out of 5 total responses supporting the winner, the workflow is essentially producing random outputs rather than reliable business recommendations. This would result in unreliable deliverables to clients and potential business impact.
+
+Recommended Fixes:
+Add explicit instruction: 'Ensure consensus logic requires minimum 60% confidence threshold and implements fallback decision-making when consensus fails. Include validation that prevents 'No consensus' outputs in production workflows.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 2
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.6164
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus logic selected a single workflow name instead of maintaining the top 5 workflows as required by the original question
+
+Details: The workflow has a fundamental logic error in the consensus mechanism. The original question explicitly requested 'top 5 AI workflows' but the consensus logic reduced this to a single winner ('ai-powered contract analysis & risk identification'). While the system correctly identified 5 workflow names, the consensus mechanism failed to preserve all 5 as required. This creates a mismatch between user expectations (5 recommendations) and delivered output (1 recommendation), making the workflow unsuitable for its intended purpose.
+
+Recommended Fixes:
+When processing requests for 'top N' items, ensure the consensus mechanism preserves all N items in ranked order rather than selecting only one winner. The final output should contain all requested items with their relative rankings.
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 3
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.61728
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism failed with only 20% confidence and 'No consensus' result, yet the system proceeded to generate recommendations without proper validation
+
+Details: The workflow has a critical logic flaw where the consensus mechanism reports failure (20% confidence, 'No consensus', weak consensus strength) but the system continues to generate business recommendations anyway. This creates unreliable outputs that could mislead clients. The disconnect between failed consensus validation and continued execution indicates missing error handling and validation gates in the workflow design.
+
+Recommended Fixes:
+Add validation logic: 'If consensus confidence is below 70% or result is 'No consensus', halt workflow execution and request human review before proceeding with recommendations'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 4
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.61824
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism failed with only 20% confidence and 'No consensus' result, indicating the workflow selection logic is fundamentally broken
+
+Details: The workflow's consensus mechanism has critically failed, producing a 'No consensus' result with only 20% confidence and weak consensus strength. This indicates the core decision-making logic is flawed, as it should be able to definitively rank and select the top 5 AI workflows from the available options. The system generated 5 workflow names but failed to properly evaluate and reach consensus on their prioritization, making the final recommendation unreliable for business implementation.
+
+Recommended Fixes:
+Add explicit instruction: 'Ensure consensus algorithm requires minimum 60% agreement threshold and implements tie-breaking logic. If initial consensus fails, re-run evaluation with weighted scoring based on implementation feasibility and ROI metrics.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 5
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.62079
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism failed with only 20% confidence and 'No consensus' result, indicating the workflow selection process is fundamentally broken
+
+Details: The workflow's consensus mechanism has completely failed, producing 'No consensus' with only 20% confidence and weak consensus strength. This represents a critical logic failure where the system cannot fulfill its primary objective of recommending AI workflows. The output shows 5 workflow names were generated, but the consensus process failed to properly evaluate and rank them, making the entire recommendation unreliable. This would result in delivering an incomplete and unusable proposal to the client, severely impacting business credibility and workflow effectiveness.
+
+Recommended Fixes:
+Add explicit instruction: 'Ensure the consensus mechanism produces a definitive result with at least 60% confidence. If initial consensus fails, implement a fallback ranking system based on weighted criteria (HIPAA compliance: 30%, implementation feasibility: 25%, ROI potential: 25%, research evidence: 20%) to guarantee a valid output.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 6
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.62164
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism selected a workflow name that doesn't match any of the 5 generated workflow names, indicating broken voting/selection logic
+
+Details: The consensus system selected 'intelligent medical document processing & triage' as the winner, but this exact string doesn't exist in the workflowNames array. The closest match is 'Intelligent Medical Document Processing & Triage' (with proper capitalization). This indicates a critical flaw in the voting/consensus logic that could lead to incorrect workflow selection and downstream processing failures. The system appears to be doing case-insensitive or fuzzy matching without proper validation, which compromises the integrity of the decision-making process.
+
+Recommended Fixes:
+Add validation requirement: 'The consensus finalAnswer must exactly match one of the workflowNames in the array. Implement strict string matching to ensure the selected winner exists in the available options.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 7
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.62252
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism selected 'ai-powered international referral triage system' as final answer but this is only one workflow, not the requested top 5 AI workflows for automation
+
+Details: The workflow execution shows a fundamental logic error where the consensus mechanism reduced 5 distinct AI workflow recommendations down to a single workflow selection. The user specifically requested 'top 5 AI workflows for automation' but the consensus logic treated this as a single-choice selection rather than maintaining all 5 workflows as the complete answer. This results in 80% data loss and fails to deliver the comprehensive analysis requested. While individual workflows were properly identified in the workflowNames array, the consensus final answer contradicts the user's explicit requirement for multiple recommendations.
+
+Recommended Fixes:
+When the user asks for 'top 5 AI workflows', ensure the consensus mechanism evaluates and returns all 5 workflows as the final answer, not just selecting one workflow from the list. The final answer should be a comprehensive list addressing all requested items.
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 8
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.6244
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism selected a workflow name that doesn't match any of the 5 generated workflow names, indicating broken voting logic
+
+Details: The consensus logic has failed critically - it selected 'ai-powered clinical data synthesis engine' as the winner, but this exact string doesn't exist in the workflowNames array which contains 'AI-Powered Clinical Data Synthesis Engine' (with proper capitalization). This indicates the voting mechanism is case-sensitive or has string matching issues, making the consensus result invalid and potentially breaking downstream workflow selection.
+
+Recommended Fixes:
+Add validation requirement: 'The consensus finalAnswer must exactly match one of the workflowNames in the array. Implement strict string matching to ensure the winning workflow name is selected from the available options.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 9
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.6252
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism failed with only 40% confidence and 2/5 votes for winner, indicating poor workflow selection logic
+
+Details: The consensus system accepted a workflow recommendation with critically low confidence (40%) and minority support (2 out of 5 votes). This indicates the workflow selection logic is fundamentally flawed and could lead to inappropriate automation recommendations for a healthcare environment where accuracy is paramount. A 40% confidence level is unacceptable for clinical decision support systems.
+
+Recommended Fixes:
+Add requirement: 'Ensure consensus mechanism requires minimum 60% confidence and majority vote (>50%) before accepting any workflow recommendation. If consensus fails, re-evaluate options or request additional analysis.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 10
+Run ID: 3fa205a3
+Score: 5
+Timestamp: 46016.62605
+
+Audit Explanation:
+🟠 [MACHINE AUDIT]
+Severity: HIGH
+Type: logic_error
+Node: consensus
+Cause: Consensus mechanism selected 'real-time graph neural network transaction analysis' as final answer but this doesn't match any of the 5 workflow names in the workflowNames array, indicating a broken mapping between consensus logic and actual workflow outputs
+
+Details: The workflow has a critical logic error where the consensus mechanism's finalAnswer ('real-time graph neural network transaction analysis') doesn't correspond to any of the actual workflow names listed in the workflowNames array. This breaks the connection between the decision-making logic and the actual deliverables, making it impossible to determine which specific workflow was actually selected. This would cause downstream processes to fail when trying to reference the selected workflow.
+
+Recommended Fixes:
+Add validation requirement: 'Ensure the consensus finalAnswer exactly matches one of the workflow names in the workflowNames array. Use exact string matching and validate before outputting results.'
+
+----------------------------------------------------------------------------------------------------
+
+FAILURE 11
+Run ID: 3fa205a3
+Score: 0
+Timestamp: 46016.62774
+
+Audit Explanation:
+QA Parser Error: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.'}, 'request_id': 'req_011CWU1CctYovD7TsjEieZRs'}
+
+Recommended Fixes:
+Check QA auditor configuration
+
+----------------------------------------------------------------------------------------------------
+
