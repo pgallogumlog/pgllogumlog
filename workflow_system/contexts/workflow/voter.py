@@ -223,19 +223,23 @@ def count_votes(
 
     # Get workflows from winning response (or first response as fallback)
     all_workflows: list[WorkflowRecommendation] = []
+    canonical_final_answer = final_answer
 
     if had_consensus:
         winner_key = normalize_name(final_answer)
         for result in per_response_data:
             if normalize_name(result.answer) == winner_key:
                 all_workflows = _convert_workflows(result.workflows)
+                # Use canonical name from workflow table (preserves Title Case)
+                if all_workflows:
+                    canonical_final_answer = all_workflows[0].name
                 break
     elif per_response_data:
         # Fallback: use first response's workflows
         all_workflows = _convert_workflows(per_response_data[0].workflows)
 
     return ConsensusResult(
-        final_answer=final_answer.lower() if final_answer != "No consensus" else final_answer,
+        final_answer=canonical_final_answer,
         total_responses=total_responses,
         votes_for_winner=max_votes,
         confidence_percent=confidence_percent,
