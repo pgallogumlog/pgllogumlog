@@ -106,7 +106,7 @@ class TestCountVotes:
 
         result = count_votes(responses, min_consensus_votes=2)
 
-        assert result.final_answer == "support bot"
+        assert result.final_answer == "Support Bot"  # Preserves Title Case from vote
         assert result.votes_for_winner == 3
         assert result.total_responses == 3
         assert result.confidence_percent == 100
@@ -122,7 +122,7 @@ class TestCountVotes:
 
         result = count_votes(responses, min_consensus_votes=2)
 
-        assert result.final_answer == "support bot"
+        assert result.final_answer == "Support Bot"  # Preserves Title Case from vote
         assert result.votes_for_winner == 2
         assert result.confidence_percent == 67
         assert result.consensus_strength == "Strong"
@@ -170,6 +170,6 @@ class TestCountVotes:
 
         result = count_votes(responses, min_consensus_votes=2)
 
-        assert result.final_answer == "support bot"
+        assert result.final_answer == "Support Bot"  # Preserves Title Case from vote
         assert result.confidence_percent == 40
         assert result.consensus_strength == "Moderate"
