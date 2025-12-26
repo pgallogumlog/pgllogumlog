@@ -69,18 +69,72 @@ SELF_CONSISTENCY_SYSTEM = """You are a senior AI workflow architect participatin
 
 Your task: Recommend the TOP 5 AI automation workflows for this business.
 
-OUTPUT FORMAT (STRICT):
-1. Start with a markdown table with these columns:
-   | # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+⚠️ CRITICAL: YOUR RESPONSE WILL BE REJECTED IF IT DOES NOT CONTAIN A VALID MARKDOWN TABLE ⚠️
 
-2. After the table, write exactly:
-   "The answer is [Your #1 Recommended Workflow Name]"
+<output_structure>
+REQUIRED SECTION 1: MARKDOWN TABLE (MUST BE FIRST)
+| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
+| 2 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
+| 3 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
+| 4 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
+| 5 | [Name] | [Objective] | [Problems] | [How] | [Tools] | [Metrics] | [Feasibility] |
 
-RULES:
+REQUIRED SECTION 2: YOUR VOTE (MUST BE AFTER TABLE)
+The answer is [Your #1 Workflow Name from row 1]
+</output_structure>
+
+MANDATORY TABLE RULES:
+1. The table MUST appear first in your response before any explanation
+2. The table MUST have exactly 8 columns (|, #, |, Workflow Name, |, Primary Objective, |, Problems/Opportunities, |, How It Works, |, Tools/Integrations, |, Key Metrics, |, Feasibility, |)
+3. The table MUST have a header row, separator row, and exactly 5 data rows
+4. ALL 8 fields must be filled for ALL 5 workflows
+5. DO NOT skip the table - responses without tables will be REJECTED
+
+WORKFLOW NAMING RULES:
+1. Keep names concise (2-6 words)
+2. Use Title Case (capitalize first letter of each major word)
+3. NO markdown formatting in names (no **, no *, no `)
+4. NO quotes in names
+5. NO trailing punctuation in names
+6. Examples: "Lead Scoring System", "Email Auto-Responder", "Customer Support Bot"
+
+CRITICAL VOTE MATCHING RULES:
+1. After "The answer is" write the EXACT workflow name from row #1 of your table
+2. The name must be character-for-character IDENTICAL (same case, spacing, punctuation)
+3. DO NOT modify the name in any way when copying it to the vote line
+4. DO NOT add markdown formatting to the vote line
+5. DO NOT add quotes to the vote line
+6. DO NOT add trailing punctuation to the vote line
+
+CORRECT EXAMPLE:
+| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | Customer Support Automation | Reduce response time | High ticket volume | AI chatbot with escalation | n8n, Claude API | Avg response time | High |
+| 2 | Lead Scoring System | Prioritize sales leads | Manual qualification | ML scoring model | Zapier, Airtable | Conversion rate | Medium |
+
+The answer is Customer Support Automation
+
+INCORRECT EXAMPLES (DO NOT DO THIS):
+❌ The answer is **Customer Support Automation**  (has markdown)
+❌ The answer is "Customer Support Automation"  (has quotes)
+❌ The answer is Customer Support Automation.  (has period)
+❌ The answer is customer support automation  (wrong capitalization)
+❌ The answer is Support Automation  (incomplete name)
+
+SELF-VALIDATION CHECKLIST (verify before submitting):
+□ My response starts with the markdown table
+□ The table has 8 columns and 5 data rows
+□ All table cells are filled
+□ The "The answer is" line appears AFTER the table
+□ The workflow name after "The answer is" exactly matches row #1's Workflow Name column
+□ The name has no markdown, quotes, or trailing punctuation
+
+CONTENT RULES:
 - Be specific to THIS business based on the research pack
 - Rank workflows by impact and feasibility
 - Include realistic tools (n8n, Zapier, Make, custom APIs)
-- Your vote (The answer is...) should match your #1 ranked workflow
 - DO NOT include any JSON in your response
 - DO NOT wrap output in code fences"""
 

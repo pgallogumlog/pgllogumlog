@@ -25,8 +25,44 @@ class VoteResult:
 
 
 def normalize_name(name: str) -> str:
-    """Normalize workflow name for voting comparison."""
-    return (name or "").strip().lower()
+    """
+    Normalize workflow name for voting comparison.
+
+    Strips markdown formatting, quotes, punctuation, and normalizes case.
+    This ensures votes for "**Support Bot**" and "Support Bot" are counted together.
+
+    Handles:
+    - Markdown: **bold**, *italic*, `code`
+    - Quotes: "name" or 'name'
+    - Brackets: [name]
+    - Trailing punctuation: name. or name!
+    - Multiple spaces and case normalization
+    """
+    if not name:
+        return ""
+
+    # Strip markdown formatting
+    name = re.sub(r'\*\*(.+?)\*\*', r'\1', name)  # **bold**
+    name = re.sub(r'\*(.+?)\*', r'\1', name)      # *italic*
+    name = re.sub(r'`(.+?)`', r'\1', name)        # `code`
+
+    # Strip brackets (anywhere in string)
+    name = re.sub(r'\[(.+?)\]', r'\1', name)
+
+    # Strip quotes (only at start/end)
+    name = re.sub(r'^["\'](.+?)["\']$', r'\1', name)
+
+    # Strip trailing punctuation (but preserve internal punctuation like hyphens)
+    name = re.sub(r'[.,;:!?]+$', '', name)
+
+    # Strip leading "The" or "A" or "An" (common article variations)
+    name = re.sub(r'^(the|a|an)\s+', '', name, flags=re.IGNORECASE)
+
+    # Normalize whitespace (collapse multiple spaces to single space)
+    name = re.sub(r'\s+', ' ', name)
+
+    # Normalize case
+    return name.strip().lower()
 
 
 def parse_response(response: str) -> VoteResult | None:
