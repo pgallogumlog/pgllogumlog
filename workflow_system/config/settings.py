@@ -79,7 +79,7 @@ class Settings(BaseSettings):
         description="Comma-separated temperature values (0-1 range)",
     )
     sc_min_consensus_votes: int = Field(
-        default=2, description="Minimum votes for consensus"
+        default=3, description="Minimum votes for consensus (60% of 5 responses)"
     )
     sc_model: str = Field(
         default="claude-sonnet-4-20250514", description="Claude model for SC engine"

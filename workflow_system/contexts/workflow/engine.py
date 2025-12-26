@@ -57,7 +57,7 @@ class WorkflowEngine:
         self,
         ai_provider: AIProvider,
         temperatures: Optional[list[float]] = None,
-        min_consensus_votes: int = 2,
+        min_consensus_votes: int = 3,
         qa_sheets_logger: Optional[QASheetsLogger] = None,
     ):
         """

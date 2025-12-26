@@ -209,7 +209,7 @@ class TestOrchestrator:
             # Create workflow engine for this test
             engine = WorkflowEngine(
                 ai_provider=self._ai,
-                min_consensus_votes=2,
+                min_consensus_votes=3,
                 qa_sheets_logger=qa_logger,
             )
 
