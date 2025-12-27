@@ -50,6 +50,18 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = Field(default=True, description="Use TLS (True for port 587)")
 
     # ===================
+    # Workflow Result Delivery
+    # ===================
+    auto_send_workflow_emails: bool = Field(
+        default=True,
+        description="Automatically send workflow results via email"
+    )
+    workflow_result_email: str = Field(
+        default="pgallogumlog@gmail.com",
+        description="Email address for workflow results"
+    )
+
+    # ===================
     # Google Sheets
     # ===================
     google_sheets_qa_log_id: str = Field(default="", description="QA Logs spreadsheet ID")

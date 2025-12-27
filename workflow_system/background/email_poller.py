@@ -13,6 +13,7 @@ from config import get_container, get_settings
 from contexts.workflow import WorkflowEngine
 from contexts.workflow.models import EmailInquiry
 from contexts.qa import QAAuditor
+from shared.delivery import deliver_workflow_via_email
 
 logger = structlog.get_logger()
 
@@ -111,13 +112,13 @@ class EmailPoller:
         qa_result = await qa_auditor.audit(result)
         await qa_auditor.log_to_sheets(qa_result)
 
-        # Send the proposal email
+        # Send the proposal email using centralized delivery helper
         email_client = self._container.email_client()
-        await email_client.send(
-            to=inquiry.reply_to,
-            subject=result.proposal.subject,
-            body=result.proposal.html_body,
-            html=True,
+        await deliver_workflow_via_email(
+            result=result,
+            inquiry=inquiry,
+            email_client=email_client,
+            recipient=inquiry.reply_to,
         )
 
         logger.info(

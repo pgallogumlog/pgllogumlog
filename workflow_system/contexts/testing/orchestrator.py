@@ -454,7 +454,7 @@ class TestOrchestrator:
                 company=test_case.company,
             )
 
-            print(f"\n✅ HTML saved: {filepath}")
+            print(f"\nHTML saved: {filepath}")
             return True
 
         except Exception as e:

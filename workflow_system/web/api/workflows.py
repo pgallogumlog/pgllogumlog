@@ -15,6 +15,7 @@ from config import get_container
 from contexts.workflow import WorkflowEngine
 from contexts.workflow.models import EmailInquiry
 from contexts.qa import QAAuditor
+from shared.delivery import deliver_workflow_via_email
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -28,7 +29,7 @@ class WorkflowRequest(BaseModel):
     client_email: str = "api@example.com"
     tier: str = "Standard"
     run_qa: bool = True
-    send_email: bool = False
+    send_email: bool = True
 
 
 class WorkflowResponse(BaseModel):
@@ -107,33 +108,13 @@ async def process_workflow(request: WorkflowRequest):
 
         # Send email if requested
         if request.send_email:
-            try:
-                email_client = container.email_client()
-                email_sent = await email_client.send(
-                    to=request.client_email,
-                    subject=result.proposal.subject,
-                    body=result.proposal.html_body,
-                    html=True,
-                )
-                if email_sent:
-                    logger.info(
-                        "proposal_email_sent",
-                        to=request.client_email,
-                        run_id=result.run_id,
-                    )
-                else:
-                    logger.warning(
-                        "proposal_email_send_failed",
-                        to=request.client_email,
-                        run_id=result.run_id,
-                    )
-            except Exception as e:
-                logger.error(
-                    "proposal_email_error",
-                    to=request.client_email,
-                    run_id=result.run_id,
-                    error=str(e),
-                )
+            email_client = container.email_client()
+            await deliver_workflow_via_email(
+                result=result,
+                inquiry=inquiry,
+                email_client=email_client,
+                recipient="pgallogumlog@gmail.com",
+            )
 
         return response
 
