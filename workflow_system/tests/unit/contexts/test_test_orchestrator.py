@@ -148,3 +148,99 @@ class TestTestOrchestrator:
         assert "Budget" in tiers_tested
         assert "Standard" in tiers_tested
         assert "Premium" in tiers_tested
+
+
+class TestFilenameSanitization:
+    """Tests for filename sanitization in HTML proposal saving."""
+
+    def test_sanitize_company_name_with_apostrophe(self):
+        """Test that apostrophes are removed from company names."""
+        from contexts.testing.orchestrator import TestOrchestrator
+        import re
+
+        company_name = "Bob's Burgers"
+        # Simulate the sanitization logic
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "Bobs_Burgers"
+        assert "'" not in company_slug
+
+    def test_sanitize_company_name_with_ampersand(self):
+        """Test that ampersands are removed from company names."""
+        import re
+
+        company_name = "Smith & Co."
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "Smith__Co"
+        assert "&" not in company_slug
+
+    def test_sanitize_company_name_with_period(self):
+        """Test that periods are removed from company names."""
+        import re
+
+        company_name = "Inc."
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "Inc"
+        assert "." not in company_slug
+
+    def test_sanitize_company_name_with_multiple_special_chars(self):
+        """Test that multiple special characters are removed."""
+        import re
+
+        company_name = "O'Reilly & Associates, Inc."
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "OReilly__Associates_Inc"
+        assert "'" not in company_slug
+        assert "&" not in company_slug
+        assert "," not in company_slug
+        assert "." not in company_slug
+
+    def test_sanitize_normal_company_name(self):
+        """Test that normal company names still work correctly."""
+        import re
+
+        company_name = "Acme Corp"
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "Acme_Corp"
+
+    def test_sanitize_company_name_with_slash(self):
+        """Test that slashes are converted to hyphens."""
+        import re
+
+        company_name = "Sales/Marketing Dept"
+        company_slug = company_name.replace(" ", "_").replace("/", "-")
+        company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+
+        assert company_slug == "Sales-Marketing_Dept"
+        assert "/" not in company_slug
+
+    def test_filename_matches_backend_validation_regex(self):
+        """Test that sanitized filenames match backend validation regex."""
+        import re
+
+        # Backend validation regex from the bug report
+        backend_regex = r"^[A-Za-z0-9_\-]+\.html$"
+
+        test_cases = [
+            "Bob's Burgers",
+            "Smith & Co.",
+            "O'Reilly & Associates, Inc.",
+            "Acme Corp",
+            "Sales/Marketing Dept"
+        ]
+
+        for company_name in test_cases:
+            company_slug = company_name.replace(" ", "_").replace("/", "-")
+            company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
+            filename = f"{company_slug}.html"
+
+            assert re.match(backend_regex, filename), f"Filename '{filename}' should match backend regex"

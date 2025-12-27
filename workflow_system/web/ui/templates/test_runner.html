@@ -103,6 +103,147 @@
             color: #8892b0;
         }
         .info-box strong { color: #00d4ff; }
+
+        .results-browser {
+            margin-top: 2rem;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .browser-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .browser-header h3 {
+            color: #00d4ff;
+            margin: 0;
+        }
+        .browser-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .result-count {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        .btn-secondary {
+            padding: 0.5rem 1rem;
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(0,212,255,0.3);
+        }
+        .btn-danger {
+            padding: 0.5rem 1rem;
+            background: rgba(255,68,68,0.2);
+            color: #ff4444;
+            border: 1px solid #ff4444;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-danger:hover {
+            background: rgba(255,68,68,0.3);
+        }
+        .results-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .result-item:hover {
+            background: rgba(255,255,255,0.06);
+        }
+        .result-info {
+            flex: 1;
+        }
+        .result-title {
+            color: #fff;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        .result-meta {
+            color: #8892b0;
+            font-size: 0.85rem;
+        }
+        .result-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .btn-view, .btn-delete {
+            padding: 0.4rem 0.8rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        .btn-view {
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+        }
+        .btn-view:hover {
+            opacity: 0.9;
+        }
+        .btn-delete {
+            background: rgba(255,68,68,0.3);
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+        .btn-delete:hover {
+            background: rgba(255,68,68,0.5);
+        }
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #8892b0;
+        }
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 500;
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+        .notification.success {
+            background: rgba(0,255,136,0.9);
+        }
+        .notification.error {
+            background: rgba(255,68,68,0.9);
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -144,6 +285,13 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="saveHtml" name="saveHtml">
+                        <label for="saveHtml" style="margin: 0;">Save HTML Results</label>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn" id="submitBtn">
                     🚀 Run Tests
                 </button>
@@ -158,6 +306,20 @@
         <div class="results" id="results">
             <h3>Test Results</h3>
             <div id="resultsList"></div>
+        </div>
+
+        <div class="results-browser">
+            <div class="browser-header">
+                <h3>HTML Results</h3>
+                <div class="browser-actions">
+                    <button id="refreshResults" class="btn-secondary">Refresh</button>
+                    <button id="deleteAll" class="btn-danger">Delete All</button>
+                </div>
+                <span class="result-count" id="resultCount">Loading...</span>
+            </div>
+            <div id="htmlResultsList" class="results-list">
+                <div class="empty-state">Loading results...</div>
+            </div>
         </div>
     </div>
 
@@ -191,6 +353,7 @@
                 tier: document.getElementById('tier').value,
                 count: parseInt(countInput.value),
                 parallel: document.getElementById('parallel').checked,
+                save_html: document.getElementById('saveHtml').checked,
             };
 
             try {
@@ -222,6 +385,164 @@
 
             submitBtn.disabled = false;
             submitBtn.textContent = '🚀 Run Tests';
+
+            // Refresh results browser after test completion
+            setTimeout(refreshHtmlResults, 2000);
+        });
+
+        // HTML Results Browser functionality
+        let refreshInterval;
+
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i)) + ' ' + sizes[i];
+        }
+
+        function formatTimestamp(isoString) {
+            const date = new Date(isoString);
+            return date.toLocaleString();
+        }
+
+        async function refreshHtmlResults() {
+            try {
+                const response = await fetch('/api/tests/results');
+                if (!response.ok) throw new Error('Failed to fetch results');
+
+                const data = await response.json();
+                const resultsList = document.getElementById('htmlResultsList');
+                const resultCount = document.getElementById('resultCount');
+
+                // Update count
+                resultCount.textContent = `${data.total} result${data.total !== 1 ? 's' : ''}`;
+
+                // Clear existing results
+                resultsList.innerHTML = '';
+
+                if (data.total === 0) {
+                    resultsList.innerHTML = '<div class="empty-state">No HTML results yet. Run tests with "Save HTML Results" enabled.</div>';
+                    return;
+                }
+
+                // Create result items
+                data.results.forEach(result => {
+                    const item = document.createElement('div');
+                    item.className = 'result-item';
+                    item.setAttribute('data-filename', result.filename);
+
+                    item.innerHTML = `
+                        <div class="result-info">
+                            <div class="result-title">${result.tier} - ${result.company}</div>
+                            <div class="result-meta">
+                                ${formatTimestamp(result.timestamp)} | Run: ${result.run_id} | ${formatBytes(result.size_bytes)}
+                            </div>
+                        </div>
+                        <div class="result-actions">
+                            <button class="btn-view" onclick="viewResult('${encodeURIComponent(result.filename)}')">View</button>
+                            <button class="btn-delete" onclick="deleteResult('${encodeURIComponent(result.filename)}')">Delete</button>
+                        </div>
+                    `;
+
+                    resultsList.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error fetching HTML results:', error);
+                showNotification('Failed to load results', 'error');
+            }
+        }
+
+        function viewResult(filename) {
+            const url = `/api/tests/results/${filename}`;
+            window.open(url, '_blank');
+        }
+
+        async function deleteResult(filename) {
+            const decodedFilename = decodeURIComponent(filename);
+            if (!confirm(`Delete ${decodedFilename}?`)) return;
+
+            try {
+                const response = await fetch(`/api/tests/results/${filename}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Delete failed');
+                }
+
+                showNotification('File deleted successfully', 'success');
+                await refreshHtmlResults();
+            } catch (error) {
+                console.error('Error deleting file:', error);
+                showNotification('Failed to delete file', 'error');
+            }
+        }
+
+        async function deleteAllResults() {
+            const resultCount = document.getElementById('resultCount').textContent;
+            if (!confirm(`Delete all HTML files? (${resultCount})`)) return;
+
+            try {
+                const response = await fetch('/api/tests/results', {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Delete all failed');
+                }
+
+                const data = await response.json();
+                showNotification(`Deleted ${data.deleted_count} files`, 'success');
+                await refreshHtmlResults();
+            } catch (error) {
+                console.error('Error deleting all files:', error);
+                showNotification('Failed to delete files', 'error');
+            }
+        }
+
+        // Event listeners for browser controls
+        document.getElementById('refreshResults').addEventListener('click', refreshHtmlResults);
+        document.getElementById('deleteAll').addEventListener('click', deleteAllResults);
+
+        // Auto-refresh every 30 seconds when page is visible
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                if (!document.hidden) {
+                    refreshHtmlResults();
+                }
+            }, 30000);
+        }
+
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+        }
+
+        // Initial load
+        refreshHtmlResults();
+        startAutoRefresh();
+
+        // Stop auto-refresh when page is hidden
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
         });
     </script>
 </body>

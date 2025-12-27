@@ -7,6 +7,7 @@ Handles parallel execution, tier comparison, and result aggregation.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from datetime import datetime
 from typing import Optional
@@ -439,6 +440,8 @@ class TestOrchestrator:
             # Create filename: {tier}_{company}_{timestamp}_{run_id}.html
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             company_slug = test_case.company.replace(" ", "_").replace("/", "-")
+            # Remove all special characters except letters, numbers, underscores, and hyphens
+            company_slug = re.sub(r'[^A-Za-z0-9_\-]', '', company_slug)
             filename = f"{tier}_{company_slug}_{timestamp}_{workflow_result.run_id[:8]}.html"
             filepath = os.path.join(self._html_output_dir, filename)
 

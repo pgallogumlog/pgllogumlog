@@ -245,3 +245,268 @@ The answer is {name}"""
         assert "email" in first_name_lower and "triage" in first_name_lower, (
             f"Expected email triage workflow to be ranked first, got '{first_workflow.name}'"
         )
+
+
+@pytest.mark.asyncio
+class TestHtmlResultsEndpoints:
+    """Tests for HTML results management endpoints."""
+
+    async def test_run_tests_with_save_html_enabled(self):
+        """Test running tests with save_html parameter."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.post(
+                "/api/tests/run",
+                json={
+                    "environment": "Production",
+                    "tier": "Standard",
+                    "count": 1,
+                    "parallel": False,
+                    "save_html": True,
+                }
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"]
+        assert data["total_tests"] >= 1
+
+    async def test_list_html_results_empty(self):
+        """Test listing HTML results when directory is empty."""
+        import os
+        import shutil
+
+        # Clean up test_results directory
+        test_results_dir = "test_results"
+        if os.path.exists(test_results_dir):
+            shutil.rmtree(test_results_dir)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/tests/results")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 0
+        assert data["results"] == []
+
+    async def test_list_html_results_with_files(self):
+        """Test listing HTML results with existing files."""
+        import os
+        from datetime import datetime
+
+        # Create test_results directory and sample files
+        test_results_dir = "test_results"
+        os.makedirs(test_results_dir, exist_ok=True)
+
+        # Create sample HTML files
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        test_files = [
+            f"Standard_Test_Company_{timestamp}_abc12345.html",
+            f"Premium_Another_Corp_{timestamp}_def67890.html",
+        ]
+
+        for filename in test_files:
+            filepath = os.path.join(test_results_dir, filename)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("<html><body>Test workflow</body></html>")
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get("/api/tests/results")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total"] == 2
+            assert len(data["results"]) == 2
+
+            # Verify metadata structure
+            result = data["results"][0]
+            assert "filename" in result
+            assert "tier" in result
+            assert "company" in result
+            assert "timestamp" in result
+            assert "run_id" in result
+            assert "size_bytes" in result
+
+        finally:
+            # Cleanup
+            import shutil
+            if os.path.exists(test_results_dir):
+                shutil.rmtree(test_results_dir)
+
+    async def test_get_html_file_success(self):
+        """Test retrieving an HTML file."""
+        import os
+        from datetime import datetime
+
+        # Create test file
+        test_results_dir = "test_results"
+        os.makedirs(test_results_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Standard_Test_Company_{timestamp}_abc12345.html"
+        filepath = os.path.join(test_results_dir, filename)
+
+        html_content = "<html><body><h1>Test Workflow Proposal</h1></body></html>"
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(html_content)
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.get(f"/api/tests/results/{filename}")
+
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "text/html; charset=utf-8"
+            assert html_content in response.text
+
+        finally:
+            # Cleanup
+            import shutil
+            if os.path.exists(test_results_dir):
+                shutil.rmtree(test_results_dir)
+
+    async def test_get_html_file_not_found(self):
+        """Test retrieving a non-existent HTML file."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/api/tests/results/nonexistent.html")
+
+        assert response.status_code == 404
+
+    async def test_get_html_file_path_traversal_attack(self):
+        """Test that path traversal attacks are blocked."""
+        from urllib.parse import quote
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            # Try various path traversal attacks with .html extension
+            # These need to be URL-encoded to pass FastAPI routing
+            malicious_filenames = [
+                quote("../../../config.html", safe=''),
+                quote("..\\..\\windows\\system32\\config.html", safe=''),
+                quote("test/../config.html", safe=''),
+            ]
+
+            for malicious_name in malicious_filenames:
+                response = await client.get(f"/api/tests/results/{malicious_name}")
+                # Accept 400 (validation error) or 404 (routing blocked) - both indicate blocked access
+                assert response.status_code in [400, 404], f"Path traversal not blocked for: {malicious_name}, got {response.status_code}"
+
+    async def test_delete_html_file_success(self):
+        """Test deleting an HTML file."""
+        import os
+        from datetime import datetime
+
+        # Create test file
+        test_results_dir = "test_results"
+        os.makedirs(test_results_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"Standard_Test_Company_{timestamp}_abc12345.html"
+        filepath = os.path.join(test_results_dir, filename)
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write("<html><body>Test</body></html>")
+
+        assert os.path.exists(filepath)
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete(f"/api/tests/results/{filename}")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["deleted"] == filename
+            assert "deleted successfully" in data["message"].lower()
+
+            # Verify file is actually deleted
+            assert not os.path.exists(filepath)
+
+        finally:
+            # Cleanup
+            import shutil
+            if os.path.exists(test_results_dir):
+                shutil.rmtree(test_results_dir)
+
+    async def test_delete_html_file_not_found(self):
+        """Test deleting a non-existent file."""
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.delete("/api/tests/results/nonexistent.html")
+
+        assert response.status_code == 404
+
+    async def test_delete_html_file_path_traversal_attack(self):
+        """Test that path traversal is blocked in delete operation."""
+        from urllib.parse import quote
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            malicious_name = quote("../../../config.html", safe='')
+            response = await client.delete(f"/api/tests/results/{malicious_name}")
+
+        # Accept 400 (validation error) or 404 (routing blocked) - both indicate blocked access
+        assert response.status_code in [400, 404]
+
+    async def test_delete_all_html_files_success(self):
+        """Test deleting all HTML files."""
+        import os
+        from datetime import datetime
+
+        # Create test files
+        test_results_dir = "test_results"
+        os.makedirs(test_results_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        test_files = [
+            f"Standard_Company_A_{timestamp}_abc12345.html",
+            f"Premium_Company_B_{timestamp}_def67890.html",
+            f"Budget_Company_C_{timestamp}_ghi11111.html",
+        ]
+
+        for filename in test_files:
+            filepath = os.path.join(test_results_dir, filename)
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write("<html><body>Test</body></html>")
+
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as client:
+                response = await client.delete("/api/tests/results")
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["deleted_count"] == 3
+            assert len(data["deleted_files"]) == 3
+
+            # Verify all files are deleted
+            for filename in test_files:
+                filepath = os.path.join(test_results_dir, filename)
+                assert not os.path.exists(filepath)
+
+        finally:
+            # Cleanup
+            import shutil
+            if os.path.exists(test_results_dir):
+                shutil.rmtree(test_results_dir)
+
+    async def test_delete_all_html_files_empty_directory(self):
+        """Test deleting all files when directory is empty."""
+        import os
+        import shutil
+
+        # Clean up test_results directory
+        test_results_dir = "test_results"
+        if os.path.exists(test_results_dir):
+            shutil.rmtree(test_results_dir)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.delete("/api/tests/results")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["deleted_count"] == 0
+        assert data["deleted_files"] == []
