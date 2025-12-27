@@ -97,6 +97,7 @@ class WorkflowEngine:
         self,
         inquiry: EmailInquiry,
         tier: str = "Standard",
+        run_id: Optional[str] = None,
     ) -> tuple[WorkflowResult, Optional[WorkflowQAResult]]:
         """
         Process an email inquiry through the full workflow.
@@ -104,12 +105,15 @@ class WorkflowEngine:
         Args:
             inquiry: The incoming email inquiry
             tier: Service tier (Budget/Standard/Premium)
+            run_id: Optional run ID to use (generates new one if not provided)
 
         Returns:
             Tuple of (WorkflowResult, Optional[WorkflowQAResult])
             QA result is None if QA capture is not enabled.
         """
-        run_id = str(uuid.uuid4())[:8]
+        # Generate run_id only if not provided (for backward compatibility)
+        if run_id is None:
+            run_id = str(uuid.uuid4())[:8]
         logger.info(
             "workflow_started",
             run_id=run_id,

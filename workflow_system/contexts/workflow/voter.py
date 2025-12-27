@@ -385,6 +385,7 @@ def count_votes(
             per_response_data=per_response_data,
             vote_counts=vote_counts,
             top_n=5,
+            normalized_prompt=normalized_prompt,
         )
 
         # Convert to WorkflowRecommendation objects
@@ -470,6 +471,7 @@ def select_top_workflows_by_votes(
     per_response_data: list[VoteResult],
     vote_counts: dict[str, int],
     top_n: int = 5,
+    normalized_prompt: str | None = None,
 ) -> list[dict]:
     """
     Select top N workflows by vote count across all responses.
@@ -506,11 +508,11 @@ def select_top_workflows_by_votes(
         workflow_vote_map.append((votes, workflow))
 
     # Calculate scores for all workflows to enable tiebreaking
-    # Note: normalized_prompt is not available in this function, so we pass None
-    # This means tiebreaking uses feasibility/impact/complexity only
+    # Includes semantic relevance scoring when normalized_prompt is provided
+    # This ensures workflows are ranked by: (1) votes, (2) quality+relevance, (3) name
     workflow_score_map: list[tuple[int, float, dict]] = []
     for votes, workflow in workflow_vote_map:
-        score = score_workflow(workflow, normalized_prompt=None)
+        score = score_workflow(workflow, normalized_prompt=normalized_prompt)
         workflow_score_map.append((votes, score, workflow))
 
     # Sort by: (1) Vote count DESC, (2) Score DESC, (3) Name alphabetically

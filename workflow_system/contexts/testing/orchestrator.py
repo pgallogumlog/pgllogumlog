@@ -203,6 +203,12 @@ class TestOrchestrator:
         )
 
         try:
+            # Extract run_id from CapturingAIAdapter if available
+            # This ensures the same run_id is used across QA logging and test results
+            run_id = None
+            if hasattr(self._ai, "call_store"):
+                run_id = self._ai.call_store.run_id
+
             # Create QA sheets logger if sheets client is available
             qa_logger = None
             if self._sheets and self._qa_spreadsheet_id:
@@ -228,9 +234,11 @@ class TestOrchestrator:
             )
 
             # Run the workflow (returns tuple of workflow_result, qa_result)
+            # Pass run_id if extracted from CapturingAIAdapter to ensure consistency
             workflow_result, qa_result_from_engine = await engine.process_inquiry(
                 inquiry=inquiry,
                 tier=tier,
+                run_id=run_id,
             )
 
             # Get semantic audit from engine if available (primary metric)

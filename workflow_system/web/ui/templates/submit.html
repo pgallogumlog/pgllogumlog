@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle { color: #8892b0; font-size: 1.1rem; }
+
+        .form-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .form-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .section-title {
+            color: #00d4ff;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-number {
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+        }
+
+        .form-group { margin-bottom: 1rem; }
+        label {
+            display: block;
+            color: #8892b0;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        label .required { color: #ff6b6b; }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="url"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #5a6a8a;
+        }
+
+        /* Tier Selection Cards */
+        .tier-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+        @media (max-width: 700px) {
+            .tier-cards { grid-template-columns: 1fr; }
+        }
+        .tier-card {
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .tier-card:hover {
+            border-color: rgba(0,212,255,0.3);
+            background: rgba(255,255,255,0.08);
+        }
+        .tier-card.selected {
+            border-color: #00d4ff;
+            background: rgba(0,212,255,0.1);
+        }
+        .tier-card input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+        }
+        .tier-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+        .tier-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+        }
+        .tier-price {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #00d4ff;
+        }
+        .tier-description {
+            color: #8892b0;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .tier-features {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        .tier-feature {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #8892b0;
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+        .tier-feature .check {
+            color: #00ff88;
+        }
+        .popular-badge {
+            position: absolute;
+            top: -10px;
+            right: 10px;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            width: 100%;
+            padding: 1.25rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .btn-submit:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Summary Box */
+        .summary-box {
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .summary-row:last-child { border-bottom: none; }
+        .summary-label { color: #8892b0; }
+        .summary-value { color: #fff; font-weight: 600; }
+        .summary-total {
+            font-size: 1.2rem;
+            color: #00d4ff;
+        }
+
+        /* Info Box */
+        .info-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+        .info-box h4 {
+            color: #00d4ff;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .info-box p {
+            color: #8892b0;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* Progress/Status */
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+        .processing.show { display: block; }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0,212,255,0.2);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .processing-text {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+        .processing-status {
+            color: #00d4ff;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Success/Error */
+        .result-card {
+            display: none;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+        }
+        .result-card.show { display: block; }
+        .result-card.success { border: 1px solid rgba(0,255,136,0.3); }
+        .result-card.error { border: 1px solid rgba(255,68,68,0.3); }
+        .result-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .result-title {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .result-message {
+            color: #8892b0;
+            margin-bottom: 1.5rem;
+        }
+        .btn-secondary {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(0,212,255,0.3);
+        }
+
+        /* Trust Signals */
+        .trust-signals {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        .trust-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        .trust-icon { color: #00ff88; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>AI Readiness Compass</h1>
+            <p class="subtitle">Get your AI automation roadmap in 24 hours</p>
+        </header>
+
+        <!-- Main Form -->
+        <form id="submitForm" class="form-card">
+            <!-- Section 1: Business Information -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">1</span>
+                    Business Information
+                </h2>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="companyName">Company Name <span class="required">*</span></label>
+                        <input type="text" id="companyName" name="company_name" required
+                               placeholder="e.g., Acme Corporation">
+                    </div>
+                    <div class="form-group">
+                        <label for="website">Website</label>
+                        <input type="url" id="website" name="website"
+                               placeholder="https://example.com">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="industry">Industry <span class="required">*</span></label>
+                        <select id="industry" name="industry" required>
+                            <option value="">Select your industry...</option>
+                            <option value="Professional Services">Professional Services (Legal, Consulting)</option>
+                            <option value="Healthcare">Healthcare & Life Sciences</option>
+                            <option value="Financial Services">Financial Services & Banking</option>
+                            <option value="Manufacturing">Manufacturing & Industrial</option>
+                            <option value="Technology">Technology & Software</option>
+                            <option value="Retail">Retail & E-commerce</option>
+                            <option value="Real Estate">Real Estate & Construction</option>
+                            <option value="Education">Education & Training</option>
+                            <option value="Media">Media & Entertainment</option>
+                            <option value="Nonprofit">Nonprofit & Government</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="companySize">Company Size <span class="required">*</span></label>
+                        <select id="companySize" name="company_size" required>
+                            <option value="">Select company size...</option>
+                            <option value="1-50">1-50 employees</option>
+                            <option value="51-200">51-200 employees</option>
+                            <option value="201-500">201-500 employees</option>
+                            <option value="501-1000">501-1,000 employees</option>
+                            <option value="1001-5000">1,001-5,000 employees</option>
+                            <option value="5000+">5,000+ employees</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Your Challenge -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">2</span>
+                    Your Challenge
+                </h2>
+
+                <div class="form-group">
+                    <label for="painPoint">Primary Pain Point <span class="required">*</span></label>
+                    <select id="painPoint" name="pain_point" required>
+                        <option value="">What's your biggest operational challenge?</option>
+                        <option value="Manual Data Entry">Manual data entry and document processing</option>
+                        <option value="Email Overload">Email overload and slow response times</option>
+                        <option value="Slow Approvals">Slow approval workflows and bottlenecks</option>
+                        <option value="Customer Support">High volume customer support requests</option>
+                        <option value="Report Generation">Time-consuming report generation</option>
+                        <option value="Lead Management">Lead qualification and follow-up</option>
+                        <option value="Invoice Processing">Invoice and payment processing</option>
+                        <option value="Employee Onboarding">Employee onboarding complexity</option>
+                        <option value="Compliance">Compliance and regulatory tracking</option>
+                        <option value="Knowledge Management">Knowledge management and documentation</option>
+                        <option value="Other">Other (describe below)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="prompt">Describe your situation <span class="required">*</span></label>
+                    <textarea id="prompt" name="prompt" required
+                              placeholder="Tell us more about your business challenge. What processes take too much time? Where do bottlenecks occur? What would you automate if you could?"></textarea>
+                </div>
+
+                <div class="info-box">
+                    <h4>Tips for best results:</h4>
+                    <p>Be specific about your pain points. Mention volume (e.g., "500 emails/day"), current tools, and desired outcomes. The more context you provide, the more tailored your recommendations will be.</p>
+                </div>
+            </div>
+
+            <!-- Section 3: Choose Your Tier -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">3</span>
+                    Choose Your Assessment
+                </h2>
+
+                <div class="tier-cards">
+                    <label class="tier-card" id="tierStarter">
+                        <input type="radio" name="tier" value="Starter" required>
+                        <div class="tier-header">
+                            <span class="tier-name">Starter</span>
+                            <span class="tier-price">$49</span>
+                        </div>
+                        <p class="tier-description">Quick assessment to validate your AI priorities</p>
+                        <div class="tier-features">
+                            <div class="tier-feature"><span class="check">✓</span> Top 5 workflow recommendations</div>
+                            <div class="tier-feature"><span class="check">✓</span> Basic implementation notes</div>
+                            <div class="tier-feature"><span class="check">✓</span> PDF report</div>
+                            <div class="tier-feature"><span class="check">✓</span> 24-hour delivery</div>
+                        </div>
+                    </label>
+
+                    <label class="tier-card selected" id="tierStandard">
+                        <span class="popular-badge">Most Popular</span>
+                        <input type="radio" name="tier" value="Standard" checked required>
+                        <div class="tier-header">
+                            <span class="tier-name">Standard</span>
+                            <span class="tier-price">$149</span>
+                        </div>
+                        <p class="tier-description">Complete roadmap your team can execute</p>
+                        <div class="tier-features">
+                            <div class="tier-feature"><span class="check">✓</span> Top 25 workflows analyzed</div>
+                            <div class="tier-feature"><span class="check">✓</span> 4-phase implementation roadmap</div>
+                            <div class="tier-feature"><span class="check">✓</span> n8n/Zapier specifications</div>
+                            <div class="tier-feature"><span class="check">✓</span> ROI projections</div>
+                            <div class="tier-feature"><span class="check">✓</span> 24-hour delivery</div>
+                        </div>
+                    </label>
+
+                    <label class="tier-card" id="tierPremium">
+                        <input type="radio" name="tier" value="Premium" required>
+                        <div class="tier-header">
+                            <span class="tier-name">Premium</span>
+                            <span class="tier-price">$399</span>
+                        </div>
+                        <p class="tier-description">Strategic assessment with expert guidance</p>
+                        <div class="tier-features">
+                            <div class="tier-feature"><span class="check">✓</span> Everything in Standard</div>
+                            <div class="tier-feature"><span class="check">✓</span> 30-min strategy call</div>
+                            <div class="tier-feature"><span class="check">✓</span> Competitor benchmarking</div>
+                            <div class="tier-feature"><span class="check">✓</span> Vendor introductions</div>
+                            <div class="tier-feature"><span class="check">✓</span> Priority support</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Section 4: Contact -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">4</span>
+                    Delivery
+                </h2>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email Address <span class="required">*</span></label>
+                        <input type="email" id="email" name="email" required
+                               placeholder="your@company.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="name">Your Name <span class="required">*</span></label>
+                        <input type="text" id="name" name="contact_name" required
+                               placeholder="John Smith">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary & Submit -->
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">Assessment Type</span>
+                    <span class="summary-value" id="summaryTier">Standard Assessment</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Delivery</span>
+                    <span class="summary-value">Within 24 hours via email</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Total</span>
+                    <span class="summary-value summary-total" id="summaryPrice">$149</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">
+                Get Your AI Roadmap →
+            </button>
+
+            <div class="trust-signals">
+                <div class="trust-item">
+                    <span class="trust-icon">🔒</span>
+                    <span>Secure payment</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon">⚡</span>
+                    <span>24-hour delivery</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon">✓</span>
+                    <span>5-perspective validation</span>
+                </div>
+            </div>
+        </form>
+
+        <!-- Processing State -->
+        <div class="form-card processing" id="processingCard">
+            <div class="spinner"></div>
+            <p class="processing-text">Analyzing your business...</p>
+            <p class="processing-status" id="processingStatus">Running 5 parallel AI analyses...</p>
+        </div>
+
+        <!-- Success State -->
+        <div class="result-card success" id="successCard">
+            <div class="result-icon">🎉</div>
+            <h2 class="result-title">Assessment Started!</h2>
+            <p class="result-message">
+                Your AI Readiness Assessment is being prepared. You'll receive your personalized roadmap at <strong id="successEmail"></strong> within 24 hours.
+            </p>
+            <p class="result-message" style="font-size: 0.9rem;">
+                Run ID: <code id="successRunId"></code>
+            </p>
+            <button class="btn-secondary" onclick="location.reload()">Submit Another Assessment</button>
+        </div>
+
+        <!-- Error State -->
+        <div class="result-card error" id="errorCard">
+            <div class="result-icon">⚠️</div>
+            <h2 class="result-title">Something went wrong</h2>
+            <p class="result-message" id="errorMessage">Please try again or contact support.</p>
+            <button class="btn-secondary" onclick="resetForm()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Tier selection
+        const tierCards = document.querySelectorAll('.tier-card');
+        const tierPrices = { 'Starter': 49, 'Standard': 149, 'Premium': 399 };
+        const tierNames = { 'Starter': 'Starter Assessment', 'Standard': 'Standard Assessment', 'Premium': 'Premium Assessment' };
+
+        tierCards.forEach(card => {
+            card.addEventListener('click', () => {
+                tierCards.forEach(c => c.classList.remove('selected'));
+                card.classList.add('selected');
+                const tier = card.querySelector('input').value;
+                document.getElementById('summaryTier').textContent = tierNames[tier];
+                document.getElementById('summaryPrice').textContent = '$' + tierPrices[tier];
+            });
+        });
+
+        // Form submission
+        const form = document.getElementById('submitForm');
+        const processingCard = document.getElementById('processingCard');
+        const successCard = document.getElementById('successCard');
+        const errorCard = document.getElementById('errorCard');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Validate form
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Show processing state
+            form.style.display = 'none';
+            processingCard.classList.add('show');
+
+            // Collect form data
+            const formData = {
+                company_name: document.getElementById('companyName').value,
+                website: document.getElementById('website').value,
+                industry: document.getElementById('industry').value,
+                company_size: document.getElementById('companySize').value,
+                pain_point: document.getElementById('painPoint').value,
+                prompt: document.getElementById('prompt').value,
+                tier: document.querySelector('input[name="tier"]:checked').value,
+                email: document.getElementById('email').value,
+                contact_name: document.getElementById('name').value,
+            };
+
+            // Update processing status
+            const statusMessages = [
+                'Analyzing your business context...',
+                'Running 5 parallel AI analyses...',
+                'Building consensus on recommendations...',
+                'Generating implementation roadmap...',
+                'Finalizing your assessment...'
+            ];
+            let statusIndex = 0;
+            const statusInterval = setInterval(() => {
+                statusIndex = (statusIndex + 1) % statusMessages.length;
+                document.getElementById('processingStatus').textContent = statusMessages[statusIndex];
+            }, 3000);
+
+            try {
+                const response = await fetch('/api/workflows/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+
+                clearInterval(statusInterval);
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Submission failed');
+                }
+
+                const data = await response.json();
+
+                // Show success
+                processingCard.classList.remove('show');
+                successCard.classList.add('show');
+                document.getElementById('successEmail').textContent = formData.email;
+                document.getElementById('successRunId').textContent = data.run_id || 'N/A';
+
+            } catch (error) {
+                clearInterval(statusInterval);
+
+                // Show error
+                processingCard.classList.remove('show');
+                errorCard.classList.add('show');
+                document.getElementById('errorMessage').textContent = error.message;
+            }
+        });
+
+        function resetForm() {
+            errorCard.classList.remove('show');
+            successCard.classList.remove('show');
+            form.style.display = 'block';
+            form.reset();
+            // Reset tier selection to Standard
+            tierCards.forEach(c => c.classList.remove('selected'));
+            document.getElementById('tierStandard').classList.add('selected');
+            document.getElementById('summaryTier').textContent = 'Standard Assessment';
+            document.getElementById('summaryPrice').textContent = '$149';
+        }
+    </script>
+</body>
+</html>
