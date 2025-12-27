@@ -25,6 +25,7 @@ from contexts.testing.models import (
 from contexts.testing.test_cases import get_test_cases
 from contexts.workflow import WorkflowEngine
 from contexts.workflow.models import EmailInquiry
+from shared.delivery import deliver_workflow_via_email
 
 logger = structlog.get_logger()
 
@@ -45,7 +46,8 @@ class TestOrchestrator:
         sheets_client: Optional[SheetsClient] = None,
         qa_spreadsheet_id: Optional[str] = None,
         email_client=None,
-        send_emails: bool = False,
+        send_emails: bool = True,
+        html_output_dir: Optional[str] = None,
     ):
         """
         Initialize the test orchestrator.
@@ -56,12 +58,14 @@ class TestOrchestrator:
             qa_spreadsheet_id: Optional spreadsheet ID for QA logs
             email_client: Optional email client for sending proposals
             send_emails: Whether to send proposal emails after processing
+            html_output_dir: Optional directory to save HTML proposals (e.g., "test_results")
         """
         self._ai = ai_provider
         self._sheets = sheets_client
         self._qa_spreadsheet_id = qa_spreadsheet_id
         self._email_client = email_client
         self._send_emails = send_emails
+        self._html_output_dir = html_output_dir
 
     async def run_tests(self, config: TestConfig) -> TestSuiteResult:
         """
@@ -304,34 +308,18 @@ class TestOrchestrator:
                 duration=f"{duration:.1f}s",
             )
 
+            # Save HTML proposal if configured
+            if self._html_output_dir:
+                await self._save_html_proposal(workflow_result, test_case, tier)
+
             # Send proposal email if configured
             if self._send_emails and self._email_client:
-                try:
-                    email_sent = await self._email_client.send(
-                        to=inquiry.from_email,
-                        subject=workflow_result.proposal.subject,
-                        body=workflow_result.proposal.html_body,
-                        html=True,
-                    )
-                    if email_sent:
-                        logger.info(
-                            "proposal_email_sent",
-                            to=inquiry.from_email,
-                            run_id=workflow_result.run_id,
-                        )
-                    else:
-                        logger.warning(
-                            "proposal_email_send_failed",
-                            to=inquiry.from_email,
-                            run_id=workflow_result.run_id,
-                        )
-                except Exception as e:
-                    logger.error(
-                        "proposal_email_error",
-                        to=inquiry.from_email,
-                        run_id=workflow_result.run_id,
-                        error=str(e),
-                    )
+                await deliver_workflow_via_email(
+                    result=workflow_result,
+                    inquiry=inquiry,
+                    email_client=self._email_client,
+                    recipient="pgallogumlog@gmail.com",
+                )
 
             return result
 
@@ -422,4 +410,57 @@ class TestOrchestrator:
 
         except Exception as e:
             logger.error("sheets_logging_failed", error=str(e))
+            return False
+
+    async def _save_html_proposal(
+        self,
+        workflow_result: WorkflowResult,
+        test_case: TestCase,
+        tier: str,
+    ) -> bool:
+        """
+        Save HTML proposal to file.
+
+        Args:
+            workflow_result: Workflow result with proposal
+            test_case: Test case that generated this result
+            tier: Tier name (Budget/Standard/Premium)
+
+        Returns:
+            True if saved successfully
+        """
+        import os
+        from datetime import datetime
+
+        try:
+            # Create output directory if it doesn't exist
+            os.makedirs(self._html_output_dir, exist_ok=True)
+
+            # Create filename: {tier}_{company}_{timestamp}_{run_id}.html
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            company_slug = test_case.company.replace(" ", "_").replace("/", "-")
+            filename = f"{tier}_{company_slug}_{timestamp}_{workflow_result.run_id[:8]}.html"
+            filepath = os.path.join(self._html_output_dir, filename)
+
+            # Write HTML to file
+            with open(filepath, "w", encoding="utf-8") as f:
+                f.write(workflow_result.proposal.html_body)
+
+            logger.info(
+                "html_proposal_saved",
+                filepath=filepath,
+                run_id=workflow_result.run_id,
+                tier=tier,
+                company=test_case.company,
+            )
+
+            print(f"\n✅ HTML saved: {filepath}")
+            return True
+
+        except Exception as e:
+            logger.error(
+                "html_save_failed",
+                error=str(e),
+                run_id=workflow_result.run_id,
+            )
             return False
