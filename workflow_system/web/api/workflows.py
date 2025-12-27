@@ -32,6 +32,30 @@ class WorkflowRequest(BaseModel):
     send_email: bool = True
 
 
+class SubmitRequest(BaseModel):
+    """Request from the AI Readiness Compass submission form."""
+
+    company_name: str
+    website: Optional[str] = None
+    industry: str
+    company_size: str
+    pain_point: str
+    prompt: str
+    tier: str = "Standard"
+    email: str
+    contact_name: str
+
+
+class SubmitResponse(BaseModel):
+    """Response from form submission."""
+
+    run_id: str
+    status: str
+    message: str
+    tier: str
+    email: str
+
+
 class WorkflowResponse(BaseModel):
     """Response from workflow processing."""
 
@@ -81,7 +105,7 @@ async def process_workflow(request: WorkflowRequest):
         )
 
         # Process the workflow
-        result = await engine.process_inquiry(
+        result, _ = await engine.process_inquiry(
             inquiry=inquiry,
             tier=request.tier,
         )
@@ -127,3 +151,111 @@ async def get_workflow_status(run_id: str):
     """Get the status of a workflow run."""
     # TODO: Implement status tracking
     return {"run_id": run_id, "status": "not_implemented"}
+
+
+@router.post("/submit", response_model=SubmitResponse)
+async def submit_assessment(request: SubmitRequest):
+    """
+    Submit an AI Readiness Assessment request.
+
+    This endpoint handles submissions from the public form:
+    1. Validates the submission
+    2. Builds a comprehensive prompt from business context
+    3. Processes through the WorkflowEngine
+    4. Sends results via email
+    5. Returns confirmation
+    """
+    container = get_container()
+
+    logger.info(
+        "assessment_submitted",
+        company=request.company_name,
+        industry=request.industry,
+        tier=request.tier,
+        email=request.email,
+    )
+
+    try:
+        # Build comprehensive prompt from form data
+        full_prompt = f"""Company: {request.company_name}
+Industry: {request.industry}
+Company Size: {request.company_size}
+Website: {request.website or 'Not provided'}
+
+Primary Pain Point: {request.pain_point}
+
+Detailed Description:
+{request.prompt}
+
+Please analyze this business and recommend the top AI automation workflows that would provide the most value. Focus on practical, implementable solutions using tools like n8n, Zapier, or Make."""
+
+        # Create workflow engine
+        engine = WorkflowEngine(
+            ai_provider=container.ai_provider(),
+            temperatures=container.settings.temperatures,
+            min_consensus_votes=container.settings.sc_min_consensus_votes,
+        )
+
+        # Create inquiry from submission
+        inquiry = EmailInquiry(
+            message_id=f"submit-{request.company_name.lower().replace(' ', '-')}",
+            from_email=request.email,
+            from_name=request.contact_name,
+            subject=f"AI Assessment: {request.company_name}",
+            body=full_prompt,
+        )
+
+        # Process the workflow
+        result, qa_result = await engine.process_inquiry(
+            inquiry=inquiry,
+            tier=request.tier,
+        )
+
+        logger.info(
+            "assessment_processed",
+            run_id=result.run_id,
+            company=request.company_name,
+            consensus=result.consensus.consensus_strength,
+            workflow_count=len(result.consensus.all_workflows),
+        )
+
+        # Send results via email
+        try:
+            email_client = container.email_client()
+            await deliver_workflow_via_email(
+                result=result,
+                inquiry=inquiry,
+                email_client=email_client,
+                recipient=request.email,
+            )
+            logger.info(
+                "assessment_email_sent",
+                run_id=result.run_id,
+                recipient=request.email,
+            )
+        except Exception as email_error:
+            logger.error(
+                "assessment_email_failed",
+                run_id=result.run_id,
+                error=str(email_error),
+            )
+            # Don't fail the request if email fails - still return success
+
+        return SubmitResponse(
+            run_id=result.run_id,
+            status="processing_complete",
+            message=f"Your AI Readiness Assessment for {request.company_name} has been processed. Check your email for results.",
+            tier=request.tier,
+            email=request.email,
+        )
+
+    except Exception as e:
+        logger.error(
+            "assessment_failed",
+            company=request.company_name,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Assessment processing failed: {str(e)}"
+        )

@@ -306,11 +306,12 @@ STYLE HINT: {style}"""
         )
 
         # Generate responses in parallel
+        # max_tokens increased to 16384 to accommodate 25-row tables (vs 5-row)
         responses = await self._ai.generate_parallel(
             prompt=prompt,
             system_prompt=SELF_CONSISTENCY_SYSTEM,
             temperatures=self._temperatures,
-            max_tokens=8192,
+            max_tokens=16384,
         )
 
         # Validate and retry invalid responses
@@ -427,7 +428,7 @@ Your response will be REJECTED again if the table is missing or incomplete."""
                 prompt=enhanced_prompt,
                 system_prompt=SELF_CONSISTENCY_SYSTEM,
                 temperature=temperature,
-                max_tokens=8192,
+                max_tokens=16384,  # Increased for 25-row tables
             )
 
             is_valid, error_msg = validate_response_has_table(response)

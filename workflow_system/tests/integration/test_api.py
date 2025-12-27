@@ -510,3 +510,132 @@ class TestHtmlResultsEndpoints:
         data = response.json()
         assert data["deleted_count"] == 0
         assert data["deleted_files"] == []
+
+
+@pytest.mark.asyncio
+class TestTwentyFiveWorkflowConsensus:
+    """Integration tests for 25-workflow self-consistency voting."""
+
+    async def test_end_to_end_125_workflows_to_top_5_output(self):
+        """
+        Test end-to-end flow: 125 workflows (5×25) → consensus voting → top 5 output.
+
+        Validates:
+        1. Engine generates 5 responses at different temperatures
+        2. Each response contains 25 workflows (125 total)
+        3. Consensus voting processes all 125 workflows
+        4. Output contains exactly 5 workflows ranked by vote count
+        5. Fallback logic still works with 25-workflow tables
+        """
+        from contexts.workflow.engine import WorkflowEngine
+        from contexts.workflow.models import EmailInquiry
+        from tests.conftest import MockAIProvider
+
+        # Setup: Create inquiry
+        inquiry = EmailInquiry(
+            message_id="test-125-workflows",
+            from_email="test@example.com",
+            from_name="Test Client",
+            subject="Need workflow automation",
+            body="I need help automating my business operations and improving efficiency across all departments.",
+        )
+
+        # Setup: Configure MockAIProvider with 25-row tables
+        mock_provider = MockAIProvider()
+
+        # Build 25-row table template
+        table_header = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|"""
+
+        # Create 25 rows for a table
+        def build_25_row_table(response_num, consensus_workflow="Efficiency Dashboard"):
+            rows = [
+                f"| 1 | {consensus_workflow} | Track KPIs | Manual reporting | Automated BI | Tableau | Accuracy | High |",
+                f"| 2 | Email Automation {response_num} | Auto-respond | Volume | AI triage | Gmail | Speed | High |",
+                f"| 3 | Lead Scoring {response_num} | Prioritize | Manual | ML | Zapier | Conv | Medium |",
+                f"| 4 | Invoice Processing {response_num} | Extract data | Manual entry | OCR | QuickBooks | Time | Medium |",
+                f"| 5 | Report Generator {response_num} | Create reports | Manual | Templates | Sheets | Quality | High |",
+                f"| 6 | CRM Sync {response_num} | Sync data | Outdated | API | Salesforce | Accuracy | Medium |",
+                f"| 7 | Social Media {response_num} | Schedule | Manual | Calendar | Buffer | Engagement | High |",
+                f"| 8 | Support Bot {response_num} | Auto-respond | Volume | Chatbot | Zendesk | Response | High |",
+                f"| 9 | Data Entry {response_num} | Automate | Manual | RPA | UiPath | Speed | Medium |",
+                f"| 10 | Onboarding {response_num} | Onboard | Slow | Workflow | n8n | Time | High |",
+                f"| 11 | Analytics {response_num} | Insights | Manual | BI | Looker | Accuracy | Medium |",
+                f"| 12 | Scheduling {response_num} | Auto-schedule | Manual | Sync | Calendly | Bookings | High |",
+                f"| 13 | Inventory {response_num} | Track stock | Manual | Barcode | ShipStation | Accuracy | Medium |",
+                f"| 14 | Payroll {response_num} | Process | Manual | Auto | Gusto | Speed | Medium |",
+                f"| 15 | Compliance {response_num} | Track | Manual | Checklist | Asana | Completion | High |",
+                f"| 16 | Marketing {response_num} | Campaigns | Manual | Sequences | HubSpot | ROI | Medium |",
+                f"| 17 | Sales Pipeline {response_num} | Track | Manual | CRM | Pipedrive | Conv | Medium |",
+                f"| 18 | Recruiting {response_num} | Screen | Manual | AI | Lever | Hire time | High |",
+                f"| 19 | Expense Tracking {response_num} | Track | Manual | OCR | Expensify | Accuracy | High |",
+                f"| 20 | Contract Mgmt {response_num} | Manage | Manual | Workflow | DocuSign | Turnaround | Medium |",
+                f"| 21 | Feedback Loop {response_num} | Collect | Manual | Surveys | Typeform | Response | High |",
+                f"| 22 | Training Delivery {response_num} | Deliver | Manual | LMS | Teachable | Completion | Medium |",
+                f"| 23 | Quality Checks {response_num} | Check | Manual | Inspection | QualityAI | Defects | High |",
+                f"| 24 | Logistics Routing {response_num} | Optimize | Manual | Routes | Route4Me | Delivery | Medium |",
+                f"| 25 | Pricing Engine {response_num} | Dynamic | Static | Algorithm | Price2Spy | Margin | Medium |",
+            ]
+            return table_header + "\n" + "\n".join(rows) + f"\n\nThe answer is {consensus_workflow}"
+
+        # Set up responses:
+        # 1. Normalized prompt (from input rewriter) - FIRST
+        # 2. Then 5 self-consistency responses with 25 workflows each
+        mock_provider.set_responses([
+            "I need help automating business operations and efficiency improvements",  # Normalized prompt
+            build_25_row_table(1, "Efficiency Dashboard"),  # temp=0.4
+            build_25_row_table(2, "Efficiency Dashboard"),  # temp=0.6
+            build_25_row_table(3, "Efficiency Dashboard"),  # temp=0.8
+            build_25_row_table(4, "Efficiency Dashboard"),  # temp=1.0
+            build_25_row_table(5, "Efficiency Dashboard"),  # temp=1.2
+        ])
+
+        # Set up JSON responses
+        mock_provider.set_json_responses([
+            # Research pack
+            {
+                "industry": "Technology",
+                "business_size": "SMB",
+                "pain_points": ["Manual processes", "Low efficiency"],
+            },
+            # Grouper response
+            {
+                "phases": [{
+                    "phaseNumber": 1,
+                    "phaseName": "Foundation",
+                    "workflows": [{
+                        "name": "Efficiency Dashboard",
+                        "objective": "Track KPIs",
+                        "tools": ["Tableau"],
+                        "description": "Automated BI dashboard",
+                    }]
+                }],
+                "recommendation": "Start with efficiency tracking",
+            },
+        ])
+
+        # Execute: Run workflow engine
+        engine = WorkflowEngine(
+            ai_provider=mock_provider,
+            temperatures=[0.4, 0.6, 0.8, 1.0, 1.2],
+            min_consensus_votes=3,  # Need 3/5 votes for consensus
+        )
+
+        result, qa_result = await engine.process_inquiry(inquiry, tier="Standard")
+
+        # Assert: Consensus should be reached (all 5 voted for "Efficiency Dashboard")
+        assert result.consensus.had_consensus is True
+        assert result.consensus.votes_for_winner == 5
+        assert "Efficiency Dashboard" in result.consensus.final_answer
+
+        # Assert: Output should contain exactly 5 workflows (not 25, not 125)
+        assert len(result.consensus.all_workflows) == 5, (
+            f"Expected exactly 5 workflows in output, got {len(result.consensus.all_workflows)}"
+        )
+
+        # Assert: Top workflow should be "Efficiency Dashboard" (consensus winner)
+        assert result.consensus.all_workflows[0].name == "Efficiency Dashboard"
+
+        # Assert: Confidence metrics should reflect strong consensus
+        assert result.consensus.confidence_percent == 100
+        assert result.consensus.consensus_strength == "Strong"

@@ -81,6 +81,14 @@ def create_app() -> FastAPI:
             {"request": request, "title": "Test Runner"},
         )
 
+    @app.get("/submit", response_class=HTMLResponse)
+    async def submit_form(request: Request):
+        """AI Readiness Compass submission form."""
+        return templates.TemplateResponse(
+            "submit.html",
+            {"request": request, "title": "AI Readiness Compass"},
+        )
+
     return app
 
 

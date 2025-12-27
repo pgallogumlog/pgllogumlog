@@ -994,3 +994,166 @@ The answer is {name}"""
         # Even though score would be 100, cap at 85
         assert result.confidence_percent == 85
         assert result.consensus_strength == "Fallback - High Confidence"
+
+
+class TestTwentyFiveWorkflowVoting:
+    """Tests for 25-workflow self-consistency voting (expanded from 5)."""
+
+    def test_parse_25_row_markdown_table(self):
+        """Test that parse_markdown_table can handle 25-row tables."""
+        # Build a 25-row table
+        header = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|"""
+
+        rows = []
+        for i in range(1, 26):
+            rows.append(f"| {i} | Workflow {i} | Objective {i} | Problem {i} | Solution {i} | Tool {i} | Metric {i} | High |")
+
+        table = header + "\n" + "\n".join(rows)
+        response = table + "\n\nThe answer is Workflow 1"
+
+        workflows = parse_markdown_table(response)
+
+        assert len(workflows) == 25
+        assert workflows[0]["name"] == "Workflow 1"
+        assert workflows[24]["name"] == "Workflow 25"
+        assert all(w["feasibility"] == "High" for w in workflows)
+
+    def test_select_top_5_workflows_by_vote_count_from_125_total(self):
+        """Test selecting top 5 workflows by vote count from 125 total (5 temps × 25 workflows)."""
+        from contexts.workflow.voter import select_top_workflows_by_votes
+
+        # Simulate 125 workflows from 5 responses (5 temps × 25 workflows each)
+        # We'll create a simplified scenario with some workflows appearing multiple times
+
+        # Create 25 workflow templates
+        workflow_template = {
+            "name": "Workflow {i}",
+            "objective": "Objective {i}",
+            "problems": "Problem {i}",
+            "how_it_works": "Solution {i}",
+            "tools": "Tool {i}",
+            "metrics": "Metric {i}",
+            "feasibility": "High",
+        }
+
+        # Generate 125 workflows (5 responses × 25 workflows)
+        # Make some workflows appear more frequently across temperatures
+        all_workflows = []
+
+        # Response 1: Workflows 1-25
+        for i in range(1, 26):
+            wf = workflow_template.copy()
+            wf["name"] = f"Workflow {i}"
+            wf["objective"] = f"Objective {i}"
+            all_workflows.append(wf)
+
+        # Response 2: Workflows 1-25 (duplicate some popular ones)
+        for i in range(1, 26):
+            wf = workflow_template.copy()
+            wf["name"] = f"Workflow {i}"
+            wf["objective"] = f"Objective {i}"
+            all_workflows.append(wf)
+
+        # Response 3-5: Mix of workflows (some duplicates)
+        for _ in range(3):
+            for i in range(1, 26):
+                wf = workflow_template.copy()
+                # First 5 workflows appear more often
+                if i <= 5:
+                    wf["name"] = f"Workflow {i}"
+                else:
+                    wf["name"] = f"Workflow {i + 10}"  # Different workflows
+                wf["objective"] = f"Objective {i}"
+                all_workflows.append(wf)
+
+        # Vote counts: Workflow 1-5 have the most votes
+        vote_counts = {
+            "workflow 1": 5,  # Appeared in all 5 responses
+            "workflow 2": 5,
+            "workflow 3": 5,
+            "workflow 4": 5,
+            "workflow 5": 5,
+            "workflow 6": 2,  # Appeared in 2 responses
+            "workflow 7": 2,
+            # ... others have fewer votes
+        }
+
+        # Empty per_response_data (not used by this function currently)
+        per_response_data = []
+
+        # Test: Select top 5 workflows
+        top_5 = select_top_workflows_by_votes(
+            all_workflows=all_workflows,
+            per_response_data=per_response_data,
+            vote_counts=vote_counts,
+            top_n=5,
+        )
+
+        # Assert: Should return exactly 5 workflows
+        assert len(top_5) == 5
+
+        # Assert: Top 5 should be Workflow 1-5 (highest vote counts)
+        top_names = [w["name"] for w in top_5]
+        assert "Workflow 1" in top_names
+        assert "Workflow 2" in top_names
+        assert "Workflow 3" in top_names
+        assert "Workflow 4" in top_names
+        assert "Workflow 5" in top_names
+
+    def test_consensus_with_125_workflows_returns_top_5(self):
+        """Test that consensus voting with 125 workflows returns exactly 5 workflows ranked by votes."""
+
+        # Build 5 responses with 25 workflows each
+        # Each response votes for "Email Automation" (consensus winner)
+        # But each response has 25 different workflows in the table
+
+        table_template_25_rows = """| # | Workflow Name | Primary Objective | Problems/Opportunities | How It Works | Tools/Integrations | Key Metrics | Feasibility |
+|---|---------------|-------------------|------------------------|--------------|-------------------|-------------|-------------|
+| 1 | Email Automation | Automate emails | High volume | AI triage | Gmail API | Speed | High |
+| 2 | Lead Scoring_{resp} | Prioritize leads | Manual | ML model | Zapier | Conv | Medium |
+| 3 | Invoice Processing_{resp} | Process invoices | Manual entry | OCR | QuickBooks | Time | Medium |
+| 4 | Report Generator_{resp} | Create reports | Manual | Templates | Sheets | Accuracy | High |
+| 5 | CRM Sync_{resp} | Sync data | Outdated | API | Salesforce | Accuracy | Medium |
+| 6 | Social Media_{resp} | Schedule posts | Manual | Calendar | Buffer | Engagement | High |
+| 7 | Customer Support_{resp} | Auto-respond | Volume | Chatbot | Zendesk | Response time | High |
+| 8 | Data Entry_{resp} | Automate entry | Manual | RPA | UiPath | Speed | Medium |
+| 9 | Onboarding_{resp} | Onboard users | Slow | Workflow | n8n | Time | High |
+| 10 | Analytics_{resp} | Generate insights | Manual | BI tools | Tableau | Accuracy | Medium |
+| 11 | Scheduling_{resp} | Auto-schedule | Manual | Calendar sync | Calendly | Bookings | High |
+| 12 | Inventory_{resp} | Track inventory | Manual | Barcode | ShipStation | Accuracy | Medium |
+| 13 | Payroll_{resp} | Process payroll | Manual | Automation | Gusto | Speed | Medium |
+| 14 | Compliance_{resp} | Track compliance | Manual | Checklist | Asana | Completion | High |
+| 15 | Marketing_{resp} | Automate campaigns | Manual | Sequences | HubSpot | ROI | Medium |
+| 16 | Sales_{resp} | Track pipeline | Manual | CRM | Pipedrive | Conv rate | Medium |
+| 17 | Recruiting_{resp} | Screen candidates | Manual | AI | Lever | Time to hire | High |
+| 18 | Expense_{resp} | Track expenses | Manual | OCR | Expensify | Accuracy | High |
+| 19 | Contract_{resp} | Manage contracts | Manual | Workflow | DocuSign | Turnaround | Medium |
+| 20 | Feedback_{resp} | Collect feedback | Manual | Surveys | Typeform | Response rate | High |
+| 21 | Training_{resp} | Deliver training | Manual | LMS | Teachable | Completion | Medium |
+| 22 | Quality_{resp} | Quality checks | Manual | Inspection | Quality AI | Defect rate | High |
+| 23 | Logistics_{resp} | Optimize routes | Manual | Routing | Route4Me | Delivery time | Medium |
+| 24 | Pricing_{resp} | Dynamic pricing | Static | Algorithm | Price2Spy | Margin | Medium |
+| 25 | Forecasting_{resp} | Predict demand | Manual | ML model | Forecast | Accuracy | High |
+
+The answer is Email Automation"""
+
+        # Create 5 responses with different workflow variations
+        responses = []
+        for resp_num in range(1, 6):
+            response_text = table_template_25_rows.replace("_{resp}", f" {resp_num}")
+            responses.append(response_text)
+
+        # Test: Count votes with min_consensus_votes=3 (should achieve consensus)
+        result = count_votes(responses, min_consensus_votes=3)
+
+        # Assert: Consensus should be reached (all 5 voted for "Email Automation")
+        assert result.had_consensus is True
+        assert result.votes_for_winner == 5
+        assert result.final_answer == "Email Automation"
+
+        # Assert: Should return exactly 5 workflows (not 25, not 125)
+        assert len(result.all_workflows) == 5
+
+        # Assert: Top workflow should be "Email Automation" (winner)
+        assert result.all_workflows[0].name == "Email Automation"

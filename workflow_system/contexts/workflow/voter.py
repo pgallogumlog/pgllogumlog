@@ -374,14 +374,25 @@ def count_votes(
     fallback_score: float | None = None
 
     if had_consensus:
-        winner_key = normalize_name(final_answer)
+        # Collect ALL workflows from ALL responses (e.g., 5 temps × 25 workflows = 125 total)
+        all_raw_workflows: list[dict] = []
         for result in per_response_data:
-            if normalize_name(result.answer) == winner_key:
-                all_workflows = _convert_workflows(result.workflows)
-                # Use canonical name from workflow table (preserves Title Case)
-                if all_workflows:
-                    canonical_final_answer = all_workflows[0].name
-                break
+            all_raw_workflows.extend(result.workflows)
+
+        # Rank all workflows by vote count and select top 5
+        top_workflows_raw = select_top_workflows_by_votes(
+            all_workflows=all_raw_workflows,
+            per_response_data=per_response_data,
+            vote_counts=vote_counts,
+            top_n=5,
+        )
+
+        # Convert to WorkflowRecommendation objects
+        all_workflows = _convert_workflows(top_workflows_raw)
+
+        # Use canonical name from top workflow (preserves Title Case)
+        if all_workflows:
+            canonical_final_answer = all_workflows[0].name
     elif per_response_data:
         # Fallback: use ranked scoring instead of just first response
         fallback_name, all_workflows = rank_workflows_by_score(per_response_data, normalized_prompt)
@@ -452,6 +463,109 @@ def count_votes(
         retried_responses=retry_count,
         fuzzy_matches=fuzzy_match_count
     )
+
+
+def select_top_workflows_by_votes(
+    all_workflows: list[dict],
+    per_response_data: list[VoteResult],
+    vote_counts: dict[str, int],
+    top_n: int = 5,
+) -> list[dict]:
+    """
+    Select top N workflows by vote count across all responses.
+
+    Used when consensus is reached to rank all workflows from all temperature
+    responses by their vote counts and return the top N.
+
+    Args:
+        all_workflows: All workflow dicts from all responses (e.g., 125 workflows from 5×25)
+        per_response_data: List of VoteResult objects from all responses
+        vote_counts: Dictionary mapping normalized workflow names to vote counts
+        top_n: Number of top workflows to return (default 5)
+
+    Returns:
+        List of top N workflow dicts ranked by vote count (descending)
+    """
+    if not all_workflows:
+        return []
+
+    # Build mapping: workflow dict → vote count
+    workflow_vote_map: list[tuple[int, dict]] = []
+
+    for workflow in all_workflows:
+        workflow_name = workflow.get("name", "")
+        if not workflow_name:
+            continue
+
+        # Find vote count for this workflow using normalized name
+        # Use only exact normalized match (no fuzzy matching here to avoid false positives)
+        # Fuzzy matching already happened in count_votes() when building vote_counts
+        normalized_name = normalize_name(workflow_name)
+        votes = vote_counts.get(normalized_name, 0)
+
+        workflow_vote_map.append((votes, workflow))
+
+    # Calculate scores for all workflows to enable tiebreaking
+    # Note: normalized_prompt is not available in this function, so we pass None
+    # This means tiebreaking uses feasibility/impact/complexity only
+    workflow_score_map: list[tuple[int, float, dict]] = []
+    for votes, workflow in workflow_vote_map:
+        score = score_workflow(workflow, normalized_prompt=None)
+        workflow_score_map.append((votes, score, workflow))
+
+    # Sort by: (1) Vote count DESC, (2) Score DESC, (3) Name alphabetically
+    # This ensures deterministic ordering with quality-based tiebreaking
+    workflow_score_map.sort(
+        key=lambda x: (-x[0], -x[1], x[2].get("name", ""))
+    )
+
+    # Select top N DISTINCT workflows (deduplication using normalized name matching)
+    selected_workflows: list[dict] = []
+    selected_normalized_names: set[str] = set()
+    duplicate_count = 0
+
+    for votes, score, workflow in workflow_score_map:
+        if len(selected_workflows) >= top_n:
+            break
+
+        workflow_name = workflow.get("name", "")
+        if not workflow_name:
+            continue
+
+        # Use normalized name for exact deduplication
+        # This handles "Email Automation" vs "**Email Automation**" as duplicates
+        # but keeps "Workflow 1" and "Workflow 10" as distinct
+        normalized_name = normalize_name(workflow_name)
+
+        if normalized_name in selected_normalized_names:
+            # Skip duplicate workflow
+            duplicate_count += 1
+            logger.debug(
+                "workflow_duplicate_skipped",
+                duplicate=workflow_name,
+                normalized=normalized_name,
+                votes=votes,
+                score=round(score, 2),
+            )
+            continue
+
+        # This is a unique workflow - add it
+        selected_workflows.append(workflow)
+        selected_normalized_names.add(normalized_name)
+
+    # Update logging to reflect new behavior
+    logger.info(
+        "select_top_workflows_by_votes",
+        total_workflows=len(all_workflows),
+        top_n=top_n,
+        selected_unique=len(selected_workflows),
+        duplicates_skipped=duplicate_count,
+        top_workflow=selected_workflows[0].get("name") if selected_workflows else None,
+        top_votes=workflow_score_map[0][0] if workflow_score_map else 0,
+        top_score=round(workflow_score_map[0][1], 2) if workflow_score_map else 0.0,
+    )
+
+    return selected_workflows
 
 
 def _convert_workflows(raw_workflows: list[dict]) -> list[WorkflowRecommendation]:
