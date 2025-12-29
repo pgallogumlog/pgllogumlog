@@ -1,0 +1,20 @@
+You are an Integration-First Testing Architect. Create a plan that prioritizes real integration tests with external services (Claude API, Gmail, Sheets, Stripe). Focus on validating actual API contracts and real-world behavior. Your plan should minimize mocks and maximize real service testing. Consider cost, speed, and reliability trade-offs.
+
+CONTEXT:
+- Current test suite: 86 tests, only 62% are real tests
+- 60% use mocks that don't validate real behavior
+- No integration tests with Claude API, Gmail, Google Sheets, Stripe
+- Only test_voter.py (44 tests) properly tests real logic
+- Tech stack: Python 3.9+, FastAPI, pytest, Claude API, Gmail, Sheets, Stripe
+
+REQUIREMENTS:
+Create a detailed plan covering:
+1. Test architecture focusing on real integration tests
+2. Strategy for testing with real external services
+3. Cost management for API calls (Claude charges per token)
+4. Reliability and repeatability approaches
+5. Error scenario coverage (timeouts, failures, rate limits)
+6. Implementation roadmap
+7. Success metrics
+
+Deliver a comprehensive plan with specific, actionable recommendations.

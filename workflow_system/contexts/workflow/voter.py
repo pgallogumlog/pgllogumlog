@@ -370,6 +370,7 @@ def count_votes(
 
     # Get workflows from winning response (or use ranked fallback)
     all_workflows: list[WorkflowRecommendation] = []
+    raw_workflows: list[WorkflowRecommendation] = []  # Store all workflows before deduplication
     canonical_final_answer = final_answer
     fallback_score: float | None = None
 
@@ -378,6 +379,9 @@ def count_votes(
         all_raw_workflows: list[dict] = []
         for result in per_response_data:
             all_raw_workflows.extend(result.workflows)
+
+        # Convert ALL raw workflows to WorkflowRecommendation objects (for data analysis)
+        raw_workflows = _convert_workflows(all_raw_workflows)
 
         # Rank all workflows by vote count and select top 5
         top_workflows_raw = select_top_workflows_by_votes(
@@ -398,6 +402,12 @@ def count_votes(
         # Fallback: use ranked scoring instead of just first response
         fallback_name, all_workflows = rank_workflows_by_score(per_response_data, normalized_prompt)
         canonical_final_answer = fallback_name
+
+        # Collect ALL raw workflows for fallback mode too
+        all_raw_workflows_fallback: list[dict] = []
+        for result in per_response_data:
+            all_raw_workflows_fallback.extend(result.workflows)
+        raw_workflows = _convert_workflows(all_raw_workflows_fallback)
 
         # Calculate fallback score for the best workflow
         if all_workflows:
@@ -462,7 +472,8 @@ def count_votes(
         valid_responses=valid_count,
         invalid_responses=invalid_count,
         retried_responses=retry_count,
-        fuzzy_matches=fuzzy_match_count
+        fuzzy_matches=fuzzy_match_count,
+        raw_workflows=raw_workflows  # All 25 workflows before deduplication
     )
 
 

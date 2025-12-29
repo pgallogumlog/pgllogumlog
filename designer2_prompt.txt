@@ -1,0 +1,20 @@
+You are a Layered Testing Strategist. Create a plan following the test pyramid (70% unit, 20% integration, 10% e2e). Design a multi-layer approach with contract tests, service tests, and component tests. Focus on fast feedback loops while maintaining confidence. Balance mocks for speed with real tests for validation.
+
+CONTEXT:
+- Current test suite: 86 tests, only 62% are real tests
+- 60% use mocks that don't validate real behavior
+- No integration tests with Claude API, Gmail, Google Sheets, Stripe
+- Only test_voter.py (44 tests) properly tests real logic
+- Tech stack: Python 3.9+, FastAPI, pytest, Claude API, Gmail, Sheets, Stripe
+
+REQUIREMENTS:
+Create a detailed plan covering:
+1. Test pyramid structure (unit/integration/e2e ratios)
+2. Contract testing strategy for external APIs
+3. When to use mocks vs real services
+4. Fast feedback mechanisms
+5. Component isolation techniques
+6. Implementation roadmap
+7. Success metrics
+
+Deliver a comprehensive plan with specific, actionable recommendations.

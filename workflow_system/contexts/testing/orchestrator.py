@@ -39,6 +39,7 @@ class TestOrchestrator:
     - Single tier or all-tier comparison testing
     - Parallel test execution with configurable concurrency
     - Result logging to Google Sheets
+    - JSON export of all workflow data for analysis
     """
 
     def __init__(
@@ -49,6 +50,7 @@ class TestOrchestrator:
         email_client=None,
         send_emails: bool = True,
         html_output_dir: Optional[str] = None,
+        json_export_path: Optional[str] = None,
     ):
         """
         Initialize the test orchestrator.
@@ -60,6 +62,7 @@ class TestOrchestrator:
             email_client: Optional email client for sending proposals
             send_emails: Whether to send proposal emails after processing
             html_output_dir: Optional directory to save HTML proposals (e.g., "test_results")
+            json_export_path: Optional path to save complete workflow data JSON (e.g., "data/workflow_analysis.json")
         """
         self._ai = ai_provider
         self._sheets = sheets_client
@@ -67,6 +70,8 @@ class TestOrchestrator:
         self._email_client = email_client
         self._send_emails = send_emails
         self._html_output_dir = html_output_dir
+        self._json_export_path = json_export_path
+        self._workflow_data_collector: dict = {}  # Collect all workflows for JSON export
 
     async def run_tests(self, config: TestConfig) -> TestSuiteResult:
         """
@@ -133,6 +138,10 @@ class TestOrchestrator:
             pass_rate=f"{suite_result.pass_rate:.1f}%",
             duration_seconds=suite_result.duration_seconds,
         )
+
+        # Export workflow data to JSON if configured
+        if self._json_export_path:
+            await self.export_workflow_data_to_json()
 
         return suite_result
 
@@ -203,11 +212,10 @@ class TestOrchestrator:
         )
 
         try:
-            # Extract run_id from CapturingAIAdapter if available
-            # This ensures the same run_id is used across QA logging and test results
-            run_id = None
-            if hasattr(self._ai, "call_store"):
-                run_id = self._ai.call_store.run_id
+            # Generate unique run_id for this specific test execution
+            # Each test gets its own run_id to track it independently in QA logs and test results
+            import uuid
+            run_id = str(uuid.uuid4())[:8]
 
             # Create QA sheets logger if sheets client is available
             qa_logger = None
@@ -316,6 +324,14 @@ class TestOrchestrator:
                 qa_score=qa_score,
                 duration=f"{duration:.1f}s",
             )
+
+            # Collect workflow data for JSON export
+            if self._json_export_path:
+                self._collect_workflow_data(
+                    test_case=test_case,
+                    tier=tier,
+                    workflow_result=workflow_result,
+                )
 
             # Save HTML proposal if configured
             if self._html_output_dir:
@@ -474,4 +490,123 @@ class TestOrchestrator:
                 error=str(e),
                 run_id=workflow_result.run_id,
             )
+            return False
+
+    def _collect_workflow_data(
+        self,
+        test_case: TestCase,
+        tier: str,
+        workflow_result: WorkflowResult,
+    ) -> None:
+        """
+        Collect workflow data for JSON export.
+
+        Builds hierarchical structure: {tier: {prompt_id: [workflows]}}
+
+        Args:
+            test_case: Test case that generated this result
+            tier: Tier name (Budget/Standard/Premium)
+            workflow_result: Workflow result with all 25 workflows
+        """
+        # Initialize tier if not exists
+        if tier not in self._workflow_data_collector:
+            self._workflow_data_collector[tier] = {}
+
+        # Use test_id as prompt identifier
+        prompt_id = f"prompt_{test_case.test_id}"
+
+        # Serialize all workflows (all 25 from consensus.raw_workflows)
+        workflows_data = []
+        for workflow in workflow_result.consensus.raw_workflows:
+            workflows_data.append({
+                "name": workflow.name,
+                "objective": workflow.objective,
+                "description": workflow.description,
+                "tools": workflow.tools,
+                "metrics": workflow.metrics,
+                "feasibility": workflow.feasibility,
+            })
+
+        # Store in collector
+        self._workflow_data_collector[tier][prompt_id] = {
+            "test_id": test_case.test_id,
+            "company": test_case.company,
+            "prompt": test_case.prompt,
+            "run_id": workflow_result.run_id,
+            "workflow_count": len(workflows_data),
+            "consensus_strength": workflow_result.consensus.consensus_strength,
+            "confidence_percent": workflow_result.consensus.confidence_percent,
+            "workflows": workflows_data,
+        }
+
+        logger.debug(
+            "workflow_data_collected",
+            tier=tier,
+            prompt_id=prompt_id,
+            workflow_count=len(workflows_data),
+        )
+
+    async def export_workflow_data_to_json(self) -> bool:
+        """
+        Export collected workflow data to JSON file.
+
+        Returns:
+            True if export succeeded
+        """
+        import json
+        import os
+
+        if not self._json_export_path:
+            logger.warning("json_export_not_configured")
+            return False
+
+        if not self._workflow_data_collector:
+            logger.warning("no_workflow_data_to_export")
+            return False
+
+        try:
+            # Create directory if needed
+            os.makedirs(os.path.dirname(self._json_export_path), exist_ok=True)
+
+            # Calculate statistics
+            total_prompts = sum(len(prompts) for prompts in self._workflow_data_collector.values())
+            total_workflows = sum(
+                sum(data["workflow_count"] for data in prompts.values())
+                for prompts in self._workflow_data_collector.values()
+            )
+
+            # Build export payload with metadata
+            export_data = {
+                "metadata": {
+                    "generated_at": datetime.now().isoformat(),
+                    "total_tiers": len(self._workflow_data_collector),
+                    "total_prompts": total_prompts,
+                    "total_workflows": total_workflows,
+                    "tiers": list(self._workflow_data_collector.keys()),
+                },
+                "data": self._workflow_data_collector,
+            }
+
+            # Write to file
+            with open(self._json_export_path, "w", encoding="utf-8") as f:
+                json.dump(export_data, f, indent=2, ensure_ascii=False)
+
+            logger.info(
+                "workflow_data_exported",
+                filepath=self._json_export_path,
+                tiers=len(self._workflow_data_collector),
+                prompts=total_prompts,
+                workflows=total_workflows,
+            )
+
+            print(f"\nWorkflow data exported to: {self._json_export_path}")
+            print(f"   Tiers: {len(self._workflow_data_collector)}")
+            print(f"   Prompts: {total_prompts}")
+            print(f"   Total workflows: {total_workflows}")
+
+            return True
+
+        except Exception as e:
+            logger.error("json_export_failed", error=str(e), filepath=self._json_export_path)
+            print(f"\nJSON export failed: {e}")
             return False

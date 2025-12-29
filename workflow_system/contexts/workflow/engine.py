@@ -28,6 +28,7 @@ from contexts.workflow.prompts import (
     RESEARCH_ENGINE_SYSTEM,
     SELF_CONSISTENCY_SYSTEM,
 )
+from contexts.workflow.selector import WorkflowSelector
 from contexts.workflow.voter import count_votes
 
 if TYPE_CHECKING:
@@ -74,6 +75,7 @@ class WorkflowEngine:
         self._temperatures = temperatures or [0.4, 0.6, 0.8, 1.0, 1.2]
         self._min_consensus = min_consensus_votes
         self._qa_logger = qa_sheets_logger
+        self._selector = WorkflowSelector()
 
         # Check if we have a capturing adapter for QA
         self._is_capturing = hasattr(ai_provider, "call_store")
@@ -146,6 +148,32 @@ class WorkflowEngine:
             run_id=run_id,
             consensus_strength=consensus.consensus_strength,
             confidence=consensus.confidence_percent,
+        )
+
+        # Step 3.5: Select top 5 workflows using hybrid selector
+        selected_workflows = self._selector.select_top_5(
+            workflows=consensus.raw_workflows,
+            tier=tier,
+            user_prompt=inquiry.body,
+            consensus_strength=consensus.consensus_strength,
+        )
+
+        # Replace all_workflows with selected top 5 for grouper and downstream
+        # Also update final_answer to match the selector's top choice
+        from dataclasses import replace
+        new_final_answer = selected_workflows[0].name if selected_workflows else consensus.final_answer
+        consensus = replace(
+            consensus,
+            all_workflows=selected_workflows,
+            final_answer=new_final_answer,
+        )
+
+        logger.info(
+            "workflow_selection_complete",
+            run_id=run_id,
+            total_workflows=len(consensus.raw_workflows),
+            selected_workflows=len(selected_workflows),
+            final_answer=new_final_answer,
         )
 
         # Step 4: Group workflows into phases
@@ -246,6 +274,7 @@ class WorkflowEngine:
                 await self._qa_logger.log_complete_workflow(
                     call_store=call_store,
                     client_name=client_name,
+                    run_id=workflow_result.run_id,
                     semantic_result=semantic_result,
                 )
 
@@ -494,7 +523,7 @@ Your response will be REJECTED again if the table is missing or incomplete."""
             prompt=json.dumps(user_content),
             system_prompt=GROUPER_SYSTEM,
             temperature=0.3,
-            max_tokens=8192,
+            max_tokens=16384,  # Increased to handle large proposals with many workflows
         )
 
     def _extract_identity(

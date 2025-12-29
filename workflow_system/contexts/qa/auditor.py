@@ -34,6 +34,38 @@ The system uses self-consistency voting with 5 AI calls at different temperature
    - `phases`: All workflows organized by implementation order
    - When user asks "top 5 workflows", the system generates 5, picks the best one via consensus, and returns all 5 in workflowNames/phases
 
+**HYBRID WORKFLOW SELECTOR (Added 2025-12-28)**:
+After consensus/fallback voting, a HYBRID SELECTOR chooses the final top 5 workflows from all ~125 generated workflows using:
+1. **Domain Diversity Goal**: MINIMUM 3 different functional domains (e.g., document processing, compliance, financial analysis, communication, analytics)
+2. **Semantic Relevance**: Workflows relate to user's question (but may address different ASPECTS of the problem)
+3. **Tier-Appropriate Feasibility**: Budget=simple tools, Standard=balanced, Premium=sophisticated
+4. **Balanced Coverage**: Workflows cover core + supporting aspects of the business need
+
+**WHAT THIS MEANS FOR QA - CRITICAL**:
+- **Domain Diversity is INTENTIONAL and DESIRABLE**: A mix of document analysis + compliance + financial + operational workflows is CORRECT, not a bug
+- **Supporting Workflows ARE Relevant**: For "cross-border M&A due diligence", these ARE all relevant:
+  - Document classification/analysis (core)
+  - Currency conversion (financial aspect of cross-border deals)
+  - Conflict checking (legal compliance requirement)
+  - Version control (document management during due diligence)
+  - Translation (cross-border requirement)
+  - Contract comparison (legal analysis)
+  - Quality assurance bots (validation requirement)
+  - Reporting/dashboards (client deliverables)
+- **DO NOT penalize breadth**: 5 diverse workflows covering different aspects is BETTER than 5 similar "document analysis" workflows
+- **Relevance is CONTEXTUAL**: A workflow doesn't have to be DIRECTLY about the core task to be relevant (e.g., currency conversion IS relevant to M&A financial analysis)
+
+**DO NOT FLAG AS "SEMANTICALLY IRRELEVANT" if**:
+- Workflows address different ASPECTS of the user's business need (finance, compliance, operations, reporting)
+- Workflows are from different domains but all relate to the industry/use case
+- There are 3-5 "core" workflows + 0-2 "supporting" workflows
+- Budget tier has simpler tools than Premium tier (this is tier-appropriate, not a downgrade)
+
+**DO FLAG AS "SEMANTICALLY IRRELEVANT" only if**:
+- Workflows are from completely wrong industry (e.g., "E-commerce Cart" for legal firm)
+- Workflows have no connection to the business context (e.g., "Social Media Posting" for healthcare M&A)
+- More than 2 workflows (40%+) are truly unrelated to any aspect of the problem
+
 **YOUR TASK**:
 1. Identify ALL **technical failures** (broken logic, missing data, incorrect outputs)
 2. **DO NOT flag these as bugs**:
@@ -49,7 +81,11 @@ The system uses self-consistency voting with 5 AI calls at different temperature
 
 **SEVERITY CLASSIFICATION**:
 - **CRITICAL** (score: 2): Workflow won't execute at all (syntax errors, missing required nodes, broken connections, empty outputs)
-- **HIGH** (score: 5): Workflow executes but produces semantically wrong results (e.g., "reporting" workflow for "document review" question, incorrect data, broken logic)
+- **HIGH** (score: 5): Workflow executes but produces semantically wrong results
+  - ONLY if workflows are from COMPLETELY WRONG industry or use case
+  - Example: "E-commerce Cart" for legal M&A, "Social Media Posting" for healthcare
+  - NOT for supporting workflows like "currency conversion" (relevant to cross-border M&A finance)
+  - Incorrect data or broken logic in workflow execution
 - **MEDIUM** (score: 7): Workflow works but has edge case bugs (missing validation, poor error handling)
 - **LOW** (score: 8): Workflow functions well but has minor issues (suboptimal patterns, missing comments)
 - **NONE** (score: 10): Workflow is production-ready with no technical issues detected

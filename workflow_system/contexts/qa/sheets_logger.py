@@ -116,6 +116,7 @@ class QASheetsLogger:
         self,
         call_store: AICallStore,
         client_name: str,
+        run_id: str,
         semantic_result: Optional[QAResult] = None,
         top_issues: Optional[list[str]] = None,
     ) -> bool:
@@ -128,6 +129,7 @@ class QASheetsLogger:
         Args:
             call_store: Store containing all captured AI calls
             client_name: Name of the client
+            run_id: Run ID for this workflow execution
             semantic_result: Optional semantic QA result from QAAuditor
             top_issues: Optional list of top issues found
 
@@ -137,7 +139,7 @@ class QASheetsLogger:
         try:
             # If we have a semantic result, use it as primary (7-column format)
             if semantic_result:
-                semantic_result.run_id = call_store.run_id
+                semantic_result.run_id = run_id
                 semantic_result.client_name = client_name
                 row = semantic_result.to_sheets_row()
 
@@ -161,6 +163,7 @@ class QASheetsLogger:
             # Fall back to call-level scoring if no semantic result
             scorer = WorkflowScorer()
             result = scorer.score(call_store, semantic_result)
+            result.run_id = run_id
             result.client_name = client_name
 
             # Build row
@@ -203,6 +206,7 @@ class QASheetsLogger:
         self,
         call_store: AICallStore,
         client_name: str,
+        run_id: str,
         semantic_result: Optional[QAResult] = None,
     ) -> tuple[int, bool]:
         """
@@ -214,6 +218,7 @@ class QASheetsLogger:
         Args:
             call_store: Store containing all captured AI calls
             client_name: Name of the client
+            run_id: Run ID for this workflow execution
             semantic_result: Optional semantic QA result
 
         Returns:
@@ -223,6 +228,7 @@ class QASheetsLogger:
         summary_logged = await self.log_workflow_summary(
             call_store=call_store,
             client_name=client_name,
+            run_id=run_id,
             semantic_result=semantic_result,
         )
 

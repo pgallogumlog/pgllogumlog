@@ -38,12 +38,13 @@ class ConsensusResult:
     confidence_percent: int
     consensus_strength: str  # "Strong", "Moderate", "Weak"
     had_consensus: bool
-    all_workflows: list[WorkflowRecommendation]
+    all_workflows: list[WorkflowRecommendation]  # Top 5 after deduplication
     # Quality metrics (Phase 3+)
     valid_responses: int = 0
     invalid_responses: int = 0
     retried_responses: int = 0
     fuzzy_matches: int = 0  # For Phase 4
+    raw_workflows: list[WorkflowRecommendation] = field(default_factory=list)  # All 25 before deduplication
 
 
 @dataclass
