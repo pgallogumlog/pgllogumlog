@@ -309,9 +309,13 @@ class TestRealQAScoring:
             assert 0 <= call.call_score.overall_score <= 10, \
                 f"Call {call.call_id} score should be 0-10"
 
-            # Score breakdown should exist
-            assert call.call_score.deterministic_score >= 0
-            assert call.call_score.probabilistic_score >= 0
+            # Score breakdown should exist (via passed flags)
+            assert call.call_score.deterministic_passed is not None, \
+                "Should have deterministic validation status"
+            # Probabilistic can be None if not run
+            assert call.call_score.probabilistic_passed is None or \
+                   isinstance(call.call_score.probabilistic_passed, bool), \
+                "Probabilistic status should be None or boolean"
 
         # Most real API calls should pass (Claude is reliable)
         pass_rate = qa_result.calls_passed / qa_result.total_calls * 100
@@ -332,8 +336,12 @@ class TestRealQAScoring:
         print(f"\nIndividual Call Scores:")
         for call in call_store.calls:
             status = "PASS" if call.call_score.passed else "FAIL"
+            det_status = "PASS" if call.call_score.deterministic_passed else "FAIL"
+            prob_status = "N/A" if call.call_score.probabilistic_passed is None else \
+                          ("PASS" if call.call_score.probabilistic_passed else "FAIL")
+
             print(f"  {call.call_id}: {call.call_score.overall_score:.1f}/10 ({status})")
-            print(f"    Deterministic: {call.call_score.deterministic_score:.1f}")
-            print(f"    Probabilistic: {call.call_score.probabilistic_score:.1f}")
+            print(f"    Deterministic: {det_status}")
+            print(f"    Probabilistic: {prob_status}")
 
         print(f"==========================================\n")
