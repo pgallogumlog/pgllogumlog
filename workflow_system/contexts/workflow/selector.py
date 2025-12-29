@@ -19,7 +19,7 @@ from .voter import normalize_name
 
 
 class WorkflowSelector:
-    """Selects top 5 workflows from generated candidates using hybrid scoring approach."""
+    """Selects top workflows from generated candidates using hybrid scoring approach (tier-specific counts)."""
 
     # Domain classification keywords
     DOMAIN_KEYWORDS = {
@@ -50,7 +50,7 @@ class WorkflowSelector:
         consensus_strength: str = "Moderate"
     ) -> List[WorkflowRecommendation]:
         """
-        Select top 5 workflows using hybrid scoring approach.
+        Select top workflows using hybrid scoring approach (tier-specific counts).
 
         Args:
             workflows: List of workflow recommendations (typically ~125 from generation)
@@ -59,13 +59,19 @@ class WorkflowSelector:
             consensus_strength: Consensus strength from generation ("Strong" | "Moderate" | "Weak")
 
         Returns:
-            List of exactly 5 selected workflow recommendations
+            List of selected workflow recommendations:
+            - Budget tier: 3 workflows
+            - Standard tier: 5 workflows
+            - Premium tier: 5 workflows
         """
         if not workflows:
             return []
 
-        if len(workflows) <= 5:
-            return workflows[:5]
+        # Determine workflow count based on tier
+        workflow_count = 3 if tier == "Budget" else 5
+
+        if len(workflows) <= workflow_count:
+            return workflows[:workflow_count]
 
         # Consensus bonus
         consensus_bonus = {
@@ -174,7 +180,7 @@ class WorkflowSelector:
                 selected.append(item)
                 selected_normalized_names.add(normalized_name)
 
-        return [s['workflow'] for s in selected[:5]]
+        return [s['workflow'] for s in selected[:workflow_count]]
 
     def extract_keywords(self, text: str) -> Dict[str, float]:
         """

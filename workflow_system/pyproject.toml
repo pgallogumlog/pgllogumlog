@@ -21,6 +21,8 @@ markers = [
     "integration: Integration tests (may use real services)",
     "slow: Slow tests (skip with -m 'not slow')",
     "api: Tests that call external APIs",
+    "real_api: Tests that use real API calls (Claude, Gmail, Sheets) - NO MOCKS",
+    "sheets: Tests that require Google Sheets API",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
