@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle { color: #8892b0; font-size: 1.1rem; }
+        .price-tag {
+            display: inline-block;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            padding: 0.5rem 1.5rem;
+            border-radius: 20px;
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-top: 1rem;
+        }
+
+        .form-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        .form-section {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .form-section:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .section-title {
+            color: #00d4ff;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .section-number {
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 600px) {
+            .form-row { grid-template-columns: 1fr; }
+        }
+
+        .form-group { margin-bottom: 1rem; }
+        label {
+            display: block;
+            color: #8892b0;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        label .required { color: #ff6b6b; }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="url"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00d4ff;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #5a6a8a;
+        }
+
+        /* Self-Assessment Scale */
+        .assessment-scale {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .scale-option {
+            flex: 1;
+            position: relative;
+        }
+        .scale-option input {
+            position: absolute;
+            opacity: 0;
+        }
+        .scale-option label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0.75rem 0.5rem;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .scale-option input:checked + label {
+            border-color: #00d4ff;
+            background: rgba(0,212,255,0.1);
+        }
+        .scale-option label:hover {
+            border-color: rgba(0,212,255,0.5);
+        }
+        .scale-number {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 0.25rem;
+        }
+        .scale-label {
+            font-size: 0.7rem;
+            color: #8892b0;
+        }
+
+        .assessment-question {
+            margin-bottom: 1.5rem;
+        }
+        .assessment-question h4 {
+            color: #fff;
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .assessment-question p {
+            color: #8892b0;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Stripe Elements */
+        #card-element {
+            padding: 1rem;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+        }
+        #card-errors {
+            color: #ff6b6b;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        /* Submit Button */
+        .btn-submit {
+            width: 100%;
+            padding: 1.25rem;
+            background: linear-gradient(90deg, #00d4ff, #7c3aed);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.2rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        .btn-submit:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Summary Box */
+        .summary-box {
+            background: rgba(0,212,255,0.1);
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .summary-row:last-child { border-bottom: none; }
+        .summary-label { color: #8892b0; }
+        .summary-value { color: #fff; font-weight: 600; }
+        .summary-total {
+            font-size: 1.3rem;
+            color: #00d4ff;
+        }
+
+        /* What's Included */
+        .included-box {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .included-box h4 {
+            color: #00d4ff;
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+        .included-list {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+        @media (max-width: 600px) {
+            .included-list { grid-template-columns: 1fr; }
+        }
+        .included-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        .included-item .check { color: #00ff88; }
+
+        /* Processing/Success/Error */
+        .processing {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+        .processing.show { display: block; }
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0,212,255,0.2);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .processing-text {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+        .processing-status {
+            color: #00d4ff;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .result-card {
+            display: none;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+        }
+        .result-card.show { display: block; }
+        .result-card.success { border: 1px solid rgba(0,255,136,0.3); }
+        .result-card.error { border: 1px solid rgba(255,68,68,0.3); }
+        .result-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .result-title {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .result-message {
+            color: #8892b0;
+            margin-bottom: 1.5rem;
+        }
+        .btn-secondary {
+            padding: 0.75rem 1.5rem;
+            background: rgba(0,212,255,0.2);
+            color: #00d4ff;
+            border: 1px solid #00d4ff;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(0,212,255,0.3);
+        }
+
+        /* Trust Signals */
+        .trust-signals {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+        .trust-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+        .trust-icon { color: #00ff88; }
+
+        /* Test Mode Banner */
+        .test-mode-banner {
+            background: linear-gradient(90deg, #ff6b6b, #feca57);
+            color: #1a1a2e;
+            padding: 0.75rem 1rem;
+            text-align: center;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+        }
+        .test-mode-info {
+            background: rgba(255,107,107,0.1);
+            border: 1px solid rgba(255,107,107,0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #feca57;
+            font-size: 0.9rem;
+        }
+
+        /* Guarantee Badge */
+        .guarantee-badge {
+            background: rgba(0,255,136,0.1);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+            margin-top: 1.5rem;
+        }
+        .guarantee-badge h4 {
+            color: #00ff88;
+            margin-bottom: 0.5rem;
+        }
+        .guarantee-badge p {
+            color: #8892b0;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Test Mode Banner (shown via JS if test mode enabled) -->
+        <div class="test-mode-banner" id="testModeBanner" style="display: none;">
+            TEST MODE - No payment required
+        </div>
+
+        <header>
+            <h1>AI Readiness Compass</h1>
+            <p class="subtitle">Premium 8-10 page strategic AI implementation report</p>
+            <div class="price-tag" id="priceTag">${{ price_dollars|int }}</div>
+        </header>
+
+        <!-- Main Form -->
+        <form id="compassForm" class="form-card">
+            <!-- Section 1: Business Information -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">1</span>
+                    Business Information
+                </h2>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="companyName">Company Name <span class="required">*</span></label>
+                        <input type="text" id="companyName" name="company_name" required
+                               placeholder="e.g., Acme Corporation">
+                    </div>
+                    <div class="form-group">
+                        <label for="website">Website</label>
+                        <input type="url" id="website" name="website"
+                               placeholder="https://example.com">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="industry">Industry <span class="required">*</span></label>
+                        <select id="industry" name="industry" required>
+                            <option value="">Select your industry...</option>
+                            <option value="Professional Services">Professional Services (Legal, Consulting)</option>
+                            <option value="Healthcare">Healthcare & Life Sciences</option>
+                            <option value="Financial Services">Financial Services & Banking</option>
+                            <option value="Manufacturing">Manufacturing & Industrial</option>
+                            <option value="Technology">Technology & Software</option>
+                            <option value="Retail">Retail & E-commerce</option>
+                            <option value="Real Estate">Real Estate & Construction</option>
+                            <option value="Education">Education & Training</option>
+                            <option value="Media">Media & Entertainment</option>
+                            <option value="Nonprofit">Nonprofit & Government</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="companySize">Company Size <span class="required">*</span></label>
+                        <select id="companySize" name="company_size" required>
+                            <option value="">Select company size...</option>
+                            <option value="1-50">1-50 employees</option>
+                            <option value="51-200">51-200 employees</option>
+                            <option value="201-500">201-500 employees</option>
+                            <option value="501-1000">501-1,000 employees</option>
+                            <option value="1001-5000">1,001-5,000 employees</option>
+                            <option value="5000+">5,000+ employees</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: AI Readiness Self-Assessment -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">2</span>
+                    AI Readiness Self-Assessment
+                </h2>
+
+                <div class="assessment-question">
+                    <h4>Data Maturity</h4>
+                    <p>How well organized and accessible is your business data?</p>
+                    <div class="assessment-scale">
+                        <div class="scale-option">
+                            <input type="radio" id="data1" name="data_maturity" value="1" required>
+                            <label for="data1">
+                                <span class="scale-number">1</span>
+                                <span class="scale-label">Scattered</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="data2" name="data_maturity" value="2">
+                            <label for="data2">
+                                <span class="scale-number">2</span>
+                                <span class="scale-label">Basic</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="data3" name="data_maturity" value="3">
+                            <label for="data3">
+                                <span class="scale-number">3</span>
+                                <span class="scale-label">Organized</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="data4" name="data_maturity" value="4">
+                            <label for="data4">
+                                <span class="scale-number">4</span>
+                                <span class="scale-label">Structured</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="data5" name="data_maturity" value="5">
+                            <label for="data5">
+                                <span class="scale-number">5</span>
+                                <span class="scale-label">Advanced</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="assessment-question">
+                    <h4>Automation Experience</h4>
+                    <p>What's your current level of process automation?</p>
+                    <div class="assessment-scale">
+                        <div class="scale-option">
+                            <input type="radio" id="auto1" name="automation_experience" value="1" required>
+                            <label for="auto1">
+                                <span class="scale-number">1</span>
+                                <span class="scale-label">Manual</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="auto2" name="automation_experience" value="2">
+                            <label for="auto2">
+                                <span class="scale-number">2</span>
+                                <span class="scale-label">Some Tools</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="auto3" name="automation_experience" value="3">
+                            <label for="auto3">
+                                <span class="scale-number">3</span>
+                                <span class="scale-label">Partial</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="auto4" name="automation_experience" value="4">
+                            <label for="auto4">
+                                <span class="scale-number">4</span>
+                                <span class="scale-label">Mostly Auto</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="auto5" name="automation_experience" value="5">
+                            <label for="auto5">
+                                <span class="scale-number">5</span>
+                                <span class="scale-label">Advanced</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="assessment-question">
+                    <h4>Change Readiness</h4>
+                    <p>How ready is your organization to adopt new technology?</p>
+                    <div class="assessment-scale">
+                        <div class="scale-option">
+                            <input type="radio" id="change1" name="change_readiness" value="1" required>
+                            <label for="change1">
+                                <span class="scale-number">1</span>
+                                <span class="scale-label">Resistant</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="change2" name="change_readiness" value="2">
+                            <label for="change2">
+                                <span class="scale-number">2</span>
+                                <span class="scale-label">Cautious</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="change3" name="change_readiness" value="3">
+                            <label for="change3">
+                                <span class="scale-number">3</span>
+                                <span class="scale-label">Open</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="change4" name="change_readiness" value="4">
+                            <label for="change4">
+                                <span class="scale-number">4</span>
+                                <span class="scale-label">Eager</span>
+                            </label>
+                        </div>
+                        <div class="scale-option">
+                            <input type="radio" id="change5" name="change_readiness" value="5">
+                            <label for="change5">
+                                <span class="scale-number">5</span>
+                                <span class="scale-label">Champion</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 3: Your Challenge -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">3</span>
+                    Your Challenge
+                </h2>
+
+                <div class="form-group">
+                    <label for="painPoint">Primary Pain Point <span class="required">*</span></label>
+                    <select id="painPoint" name="pain_point" required>
+                        <option value="">What's your biggest operational challenge?</option>
+                        <option value="Manual Data Entry">Manual data entry and document processing</option>
+                        <option value="Email Overload">Email overload and slow response times</option>
+                        <option value="Slow Approvals">Slow approval workflows and bottlenecks</option>
+                        <option value="Customer Support">High volume customer support requests</option>
+                        <option value="Report Generation">Time-consuming report generation</option>
+                        <option value="Lead Management">Lead qualification and follow-up</option>
+                        <option value="Invoice Processing">Invoice and payment processing</option>
+                        <option value="Employee Onboarding">Employee onboarding complexity</option>
+                        <option value="Compliance">Compliance and regulatory tracking</option>
+                        <option value="Knowledge Management">Knowledge management and documentation</option>
+                        <option value="Other">Other (describe below)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Describe your situation <span class="required">*</span></label>
+                    <textarea id="description" name="description" required
+                              placeholder="Tell us more about your business challenge. What processes take too much time? Where do bottlenecks occur? What would you automate if you could? Be as specific as possible for the most tailored recommendations."></textarea>
+                </div>
+            </div>
+
+            <!-- Section 4: Delivery -->
+            <div class="form-section">
+                <h2 class="section-title">
+                    <span class="section-number">4</span>
+                    Delivery
+                </h2>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email Address <span class="required">*</span></label>
+                        <input type="email" id="email" name="email" required
+                               placeholder="your@company.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="contactName">Your Name <span class="required">*</span></label>
+                        <input type="text" id="contactName" name="contact_name" required
+                               placeholder="John Smith">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 5: Payment (hidden in test mode) -->
+            <div class="form-section" id="paymentSection">
+                <h2 class="section-title">
+                    <span class="section-number">5</span>
+                    Payment
+                </h2>
+
+                <div class="form-group">
+                    <label>Card Details <span class="required">*</span></label>
+                    <div id="card-element"></div>
+                    <div id="card-errors" role="alert"></div>
+                </div>
+            </div>
+
+            <!-- Test Mode Info (shown in test mode) -->
+            <div class="form-section" id="testModeSection" style="display: none;">
+                <div class="test-mode-info">
+                    <strong>Test Mode Active</strong><br>
+                    Payment is bypassed. The full AI pipeline will run and generate a real report using your Claude API key.
+                </div>
+            </div>
+
+            <!-- What's Included -->
+            <div class="included-box">
+                <h4>What's Included in Your Report:</h4>
+                <div class="included-list">
+                    <div class="included-item"><span class="check">✓</span> AI Readiness Score with breakdown</div>
+                    <div class="included-item"><span class="check">✓</span> Top 3 priority recommendations</div>
+                    <div class="included-item"><span class="check">✓</span> Industry-specific AI insights</div>
+                    <div class="included-item"><span class="check">✓</span> 90-day implementation roadmap</div>
+                    <div class="included-item"><span class="check">✓</span> "What to Avoid" anti-recommendations</div>
+                    <div class="included-item"><span class="check">✓</span> Tool recommendations (RAG, Agentic, etc.)</div>
+                    <div class="included-item"><span class="check">✓</span> Expected ROI projections</div>
+                    <div class="included-item"><span class="check">✓</span> Executive-ready PDF format</div>
+                </div>
+            </div>
+
+            <!-- Summary & Submit -->
+            <div class="summary-box">
+                <div class="summary-row">
+                    <span class="summary-label">AI Readiness Compass Report</span>
+                    <span class="summary-value">${{ price_dollars|int }}</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Delivery</span>
+                    <span class="summary-value">2-4 hours via email</span>
+                </div>
+                <div class="summary-row">
+                    <span class="summary-label">Total</span>
+                    <span class="summary-value summary-total">${{ price_dollars|int }}</span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit" id="submitBtn">
+                Get Your AI Readiness Report →
+            </button>
+
+            <div class="guarantee-badge">
+                <h4>Quality Guarantee</h4>
+                <p>Your payment is held until our AI quality check passes. If we can't deliver valuable insights, you won't be charged.</p>
+            </div>
+
+            <div class="trust-signals">
+                <div class="trust-item">
+                    <span class="trust-icon">🔒</span>
+                    <span>Secure payment via Stripe</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon">⚡</span>
+                    <span>2-4 hour delivery</span>
+                </div>
+                <div class="trust-item">
+                    <span class="trust-icon">✓</span>
+                    <span>QA-validated content</span>
+                </div>
+            </div>
+        </form>
+
+        <!-- Processing State -->
+        <div class="form-card processing" id="processingCard">
+            <div class="spinner"></div>
+            <p class="processing-text">Processing your payment...</p>
+            <p class="processing-status" id="processingStatus">Securing your order...</p>
+        </div>
+
+        <!-- Success State -->
+        <div class="result-card success" id="successCard">
+            <div class="result-icon">🎉</div>
+            <h2 class="result-title">Order Confirmed!</h2>
+            <p class="result-message">
+                Your AI Readiness Compass report is being generated. You'll receive your premium report at <strong id="successEmail"></strong> within 2-4 hours.
+            </p>
+            <p class="result-message" style="font-size: 0.9rem;">
+                Order ID: <code id="successRunId"></code>
+            </p>
+            <button class="btn-secondary" onclick="location.href='/'">Return to Home</button>
+        </div>
+
+        <!-- Error State -->
+        <div class="result-card error" id="errorCard">
+            <div class="result-icon">⚠️</div>
+            <h2 class="result-title">Payment Failed</h2>
+            <p class="result-message" id="errorMessage">Please check your card details and try again.</p>
+            <button class="btn-secondary" onclick="resetForm()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Global state
+        let testMode = false;
+        let stripe = null;
+        let cardElement = null;
+
+        // DOM elements
+        const form = document.getElementById('compassForm');
+        const processingCard = document.getElementById('processingCard');
+        const successCard = document.getElementById('successCard');
+        const errorCard = document.getElementById('errorCard');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                // Fetch config to check test mode
+                const configResponse = await fetch('/api/compass/config');
+                const config = await configResponse.json();
+                testMode = config.test_mode;
+
+                if (testMode) {
+                    // Test mode: Hide payment, show banner
+                    document.getElementById('testModeBanner').style.display = 'block';
+                    document.getElementById('paymentSection').style.display = 'none';
+                    document.getElementById('testModeSection').style.display = 'block';
+                    document.getElementById('priceTag').textContent = 'FREE (Test Mode)';
+                    submitBtn.textContent = 'Generate Test Report →';
+
+                    // Update summary box
+                    const summaryValues = document.querySelectorAll('.summary-value');
+                    summaryValues.forEach(el => {
+                        if (el.textContent.includes('$')) {
+                            el.textContent = 'FREE';
+                        }
+                    });
+                } else {
+                    // Production mode: Initialize Stripe
+                    if (config.stripe_publishable_key) {
+                        stripe = Stripe(config.stripe_publishable_key);
+                        const elements = stripe.elements();
+
+                        cardElement = elements.create('card', {
+                            style: {
+                                base: {
+                                    color: '#ffffff',
+                                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                                    fontSize: '16px',
+                                    '::placeholder': { color: '#5a6a8a' }
+                                },
+                                invalid: {
+                                    color: '#ff6b6b',
+                                    iconColor: '#ff6b6b'
+                                }
+                            }
+                        });
+                        cardElement.mount('#card-element');
+
+                        // Handle card errors
+                        cardElement.on('change', (event) => {
+                            const errorElement = document.getElementById('card-errors');
+                            if (event.error) {
+                                errorElement.textContent = event.error.message;
+                            } else {
+                                errorElement.textContent = '';
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load config:', error);
+            }
+        });
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Validate form
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            // Disable submit button
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+
+            // Show processing state
+            form.style.display = 'none';
+            processingCard.classList.add('show');
+
+            try {
+                let paymentMethodId = null;
+
+                if (!testMode && stripe && cardElement) {
+                    // Production mode: Create payment method
+                    updateStatus('Creating secure payment...');
+                    const { paymentMethod, error: pmError } = await stripe.createPaymentMethod({
+                        type: 'card',
+                        card: cardElement,
+                        billing_details: {
+                            email: document.getElementById('email').value,
+                            name: document.getElementById('contactName').value,
+                        }
+                    });
+
+                    if (pmError) {
+                        throw new Error(pmError.message);
+                    }
+                    paymentMethodId = paymentMethod.id;
+                    updateStatus('Authorizing payment...');
+                } else {
+                    // Test mode
+                    updateStatus('Running AI analysis (this may take 1-2 minutes)...');
+                }
+
+                const formData = {
+                    company_name: document.getElementById('companyName').value,
+                    website: document.getElementById('website').value || null,
+                    industry: document.getElementById('industry').value,
+                    company_size: document.getElementById('companySize').value,
+                    data_maturity: parseInt(document.querySelector('input[name="data_maturity"]:checked').value),
+                    automation_experience: parseInt(document.querySelector('input[name="automation_experience"]:checked').value),
+                    change_readiness: parseInt(document.querySelector('input[name="change_readiness"]:checked').value),
+                    pain_point: document.getElementById('painPoint').value,
+                    description: document.getElementById('description').value,
+                    email: document.getElementById('email').value,
+                    contact_name: document.getElementById('contactName').value,
+                    payment_method_id: paymentMethodId,
+                };
+
+                const response = await fetch('/api/compass/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'Submission failed');
+                }
+
+                const data = await response.json();
+
+                // Confirm payment if needed (production mode only)
+                if (!testMode && data.client_secret) {
+                    updateStatus('Confirming payment...');
+                    const { error: confirmError } = await stripe.confirmCardPayment(data.client_secret);
+                    if (confirmError) {
+                        throw new Error(confirmError.message);
+                    }
+                }
+
+                // Success!
+                updateStatus(testMode ? 'Report generated!' : 'Payment authorized!');
+                processingCard.classList.remove('show');
+                successCard.classList.add('show');
+                document.getElementById('successEmail').textContent = formData.email;
+                document.getElementById('successRunId').textContent = data.run_id || 'N/A';
+
+                // Update success message for test mode
+                if (testMode) {
+                    document.querySelector('#successCard .result-message').innerHTML =
+                        `<strong>TEST MODE</strong>: ${data.message}`;
+                }
+
+            } catch (error) {
+                // Error
+                processingCard.classList.remove('show');
+                errorCard.classList.add('show');
+                document.getElementById('errorMessage').textContent = error.message;
+            }
+        });
+
+        function updateStatus(message) {
+            document.getElementById('processingStatus').textContent = message;
+        }
+
+        function resetForm() {
+            errorCard.classList.remove('show');
+            successCard.classList.remove('show');
+            form.style.display = 'block';
+            submitBtn.disabled = false;
+            submitBtn.textContent = testMode ? 'Generate Test Report →' : 'Get Your AI Readiness Report →';
+            if (cardElement) {
+                cardElement.clear();
+            }
+        }
+    </script>
+</body>
+</html>

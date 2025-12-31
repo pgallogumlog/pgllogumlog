@@ -131,6 +131,36 @@ class SheetsClient(Protocol):
         ...
 
 
+@runtime_checkable
+class PaymentClient(Protocol):
+    """Interface for payment operations (Stripe)."""
+
+    async def create_payment_intent(
+        self,
+        amount_cents: int,
+        email: str,
+        metadata: dict,
+    ) -> object:
+        """Create a payment intent with manual capture."""
+        ...
+
+    async def capture_payment(self, payment_intent_id: str) -> object:
+        """Capture an authorized payment."""
+        ...
+
+    async def cancel_payment(self, payment_intent_id: str) -> object:
+        """Cancel a payment intent and release hold."""
+        ...
+
+    async def get_payment_intent(self, payment_intent_id: str) -> object:
+        """Retrieve a payment intent by ID."""
+        ...
+
+    def verify_webhook_signature(self, payload: bytes, signature: str) -> dict:
+        """Verify Stripe webhook signature and return event."""
+        ...
+
+
 # ===================
 # Dependency Container
 # ===================
@@ -252,6 +282,18 @@ class Container:
 
         return SheetsAdapter(
             credentials_file=self._settings.google_sheets_credentials_file,
+        )
+
+    def payment_client(self) -> PaymentClient:
+        """Get payment client instance (Stripe)."""
+        if "payment_client" in self._overrides:
+            return self._overrides["payment_client"]
+
+        from infrastructure.payments.stripe_adapter import StripeAdapter
+
+        return StripeAdapter(
+            secret_key=self._settings.stripe_secret_key,
+            webhook_secret=self._settings.stripe_webhook_secret,
         )
 
 

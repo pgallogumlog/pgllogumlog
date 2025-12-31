@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Readiness Compass - {{ company_name }}</title>
+    <style>
+        :root {
+            --primary: #1a1a2e;
+            --secondary: #16213e;
+            --accent: #00d4ff;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --danger: #ff4444;
+            --text: #333;
+            --text-light: #666;
+            --bg: #ffffff;
+            --bg-alt: #f8f9fa;
+            --border: #e0e0e0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text);
+            background: var(--bg);
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        /* Header */
+        .report-header {
+            text-align: center;
+            padding: 40px 0;
+            border-bottom: 3px solid var(--accent);
+            margin-bottom: 40px;
+        }
+
+        .report-header h1 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .report-header .company-name {
+            font-size: 1.5rem;
+            color: var(--secondary);
+            margin-bottom: 5px;
+        }
+
+        .report-header .meta {
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        /* Score Section */
+        .score-section {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .score-circle {
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            border: 6px solid {{ score_color }};
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 20px;
+        }
+
+        .score-number {
+            font-size: 3.5rem;
+            font-weight: 700;
+            color: {{ score_color }};
+        }
+
+        .score-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .readiness-level {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .score-breakdown {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .breakdown-item {
+            text-align: center;
+        }
+
+        .breakdown-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .breakdown-label {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        /* Section Styles */
+        section {
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            font-size: 1.8rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--accent);
+        }
+
+        h3 {
+            font-size: 1.3rem;
+            color: var(--secondary);
+            margin-bottom: 15px;
+        }
+
+        h4 {
+            font-size: 1.1rem;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        /* Executive Summary */
+        .executive-summary {
+            background: var(--bg-alt);
+            padding: 30px;
+            border-radius: 12px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .executive-summary p {
+            margin-bottom: 15px;
+            font-size: 1.05rem;
+        }
+
+        .executive-summary p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Priority Cards */
+        .priority-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .priority-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .priority-rank {
+            width: 40px;
+            height: 40px;
+            background: var(--accent);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .priority-title {
+            font-size: 1.3rem;
+            color: var(--primary);
+        }
+
+        .priority-description {
+            color: var(--text-light);
+            margin-bottom: 20px;
+        }
+
+        .solution-box {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f7fa 100%);
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .solution-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .solution-name {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        .solution-type {
+            background: var(--accent);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .solution-detail {
+            margin-bottom: 12px;
+        }
+
+        .solution-detail strong {
+            color: var(--primary);
+        }
+
+        .solution-tools {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .tool-tag {
+            background: var(--secondary);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .impact-badge {
+            display: inline-block;
+            background: var(--success);
+            color: var(--primary);
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 10px;
+        }
+
+        .complexity-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .complexity-low {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .complexity-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .complexity-high {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Avoid Section */
+        .avoid-card {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+            border: 1px solid #ffcccc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .avoid-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .avoid-icon {
+            width: 30px;
+            height: 30px;
+            background: var(--danger);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+        }
+
+        .avoid-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #721c24;
+        }
+
+        .avoid-tempting, .avoid-wrong {
+            margin-bottom: 10px;
+            padding-left: 15px;
+            border-left: 3px solid;
+        }
+
+        .avoid-tempting {
+            border-color: var(--warning);
+        }
+
+        .avoid-wrong {
+            border-color: var(--danger);
+        }
+
+        /* Roadmap Section */
+        .roadmap-timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+
+        .roadmap-timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: linear-gradient(180deg, var(--accent) 0%, var(--success) 100%);
+            border-radius: 2px;
+        }
+
+        .roadmap-phase {
+            position: relative;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--bg-alt);
+            border-radius: 12px;
+        }
+
+        .roadmap-phase::before {
+            content: '';
+            position: absolute;
+            left: -27px;
+            top: 25px;
+            width: 16px;
+            height: 16px;
+            background: var(--accent);
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 2px var(--accent);
+        }
+
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .phase-month {
+            background: var(--primary);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .phase-focus {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--secondary);
+        }
+
+        .phase-actions {
+            list-style: none;
+            margin-bottom: 15px;
+        }
+
+        .phase-actions li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .phase-actions li::before {
+            content: '\2713';
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        .decision-gate {
+            background: linear-gradient(90deg, var(--success) 0%, transparent 100%);
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Footer */
+        .report-footer {
+            text-align: center;
+            padding: 30px 0;
+            margin-top: 40px;
+            border-top: 2px solid var(--border);
+            color: var(--text-light);
+            font-size: 0.9rem;
+        }
+
+        .report-footer .report-id {
+            font-family: monospace;
+            background: var(--bg-alt);
+            padding: 5px 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: inline-block;
+        }
+
+        /* Print Styles */
+        @media print {
+            body {
+                padding: 20px;
+            }
+
+            .score-section {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            section {
+                page-break-inside: avoid;
+            }
+
+            .priority-card, .avoid-card, .roadmap-phase {
+                page-break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Report Header -->
+    <header class="report-header">
+        <h1>AI Readiness Compass</h1>
+        <div class="company-name">{{ company_name }}</div>
+        <div class="meta">{{ industry }} | {{ company_size }} employees</div>
+        <div class="meta">Prepared for {{ contact_name }} | {{ generated_date }}</div>
+    </header>
+
+    <!-- AI Readiness Score -->
+    <section class="score-section">
+        <div class="score-circle">
+            <span class="score-number">{{ score.overall_score|int }}</span>
+            <span class="score-label">out of 100</span>
+        </div>
+        <div class="readiness-level">{{ readiness_level }} Level</div>
+        <p>Your organization's AI implementation readiness</p>
+        <div class="score-breakdown">
+            <div class="breakdown-item">
+                <div class="breakdown-value">{{ score.self_assessment_score|int }}</div>
+                <div class="breakdown-label">Self-Assessment</div>
+            </div>
+            <div class="breakdown-item">
+                <div class="breakdown-value">{{ score.research_score|int }}</div>
+                <div class="breakdown-label">Research Score</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Executive Summary -->
+    <section>
+        <h2>Executive Summary</h2>
+        <div class="executive-summary">
+            {% for paragraph in executive_summary.split('\n\n') %}
+            <p>{{ paragraph }}</p>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Top 3 Business Priorities -->
+    <section>
+        <h2>Top 3 Business Priorities</h2>
+        {% for priority in priorities %}
+        <div class="priority-card">
+            <div class="priority-header">
+                <span class="priority-rank">{{ priority.rank }}</span>
+                <span class="priority-title">{{ priority.problem_name }}</span>
+            </div>
+            <p class="priority-description">{{ priority.problem_description }}</p>
+
+            <div class="solution-box">
+                <div class="solution-header">
+                    <span class="solution-name">{{ priority.solution.name }}</span>
+                    <span class="solution-type">{{ priority.solution.approach_type }}</span>
+                </div>
+                <div class="solution-detail">
+                    <strong>Approach:</strong> {{ priority.solution.description }}
+                </div>
+                <div class="solution-detail">
+                    <strong>Why This Fits:</strong> {{ priority.solution.why_this_fits }}
+                </div>
+                <div class="solution-tools">
+                    <strong>Tools:</strong>
+                    {% for tool in priority.solution.tools %}
+                    <span class="tool-tag">{{ tool }}</span>
+                    {% endfor %}
+                </div>
+                <div style="margin-top: 15px;">
+                    <span class="impact-badge">{{ priority.solution.expected_impact }}</span>
+                    <span class="complexity-badge complexity-{{ priority.solution.complexity|lower }}">
+                        {{ priority.solution.complexity }} Complexity
+                    </span>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- What to Avoid -->
+    <section>
+        <h2>What to Avoid</h2>
+        <p style="margin-bottom: 20px; color: var(--text-light);">
+            These solutions may seem attractive but are not right for your current readiness level.
+        </p>
+        {% for anti in avoid %}
+        <div class="avoid-card">
+            <div class="avoid-header">
+                <span class="avoid-icon">!</span>
+                <span class="avoid-name">{{ anti.name }}</span>
+            </div>
+            <div class="avoid-tempting">
+                <strong>Why It's Tempting:</strong> {{ anti.why_tempting }}
+            </div>
+            <div class="avoid-wrong">
+                <strong>Why It's Wrong for You:</strong> {{ anti.why_wrong_for_them }}
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <!-- 90-Day Implementation Roadmap -->
+    <section>
+        <h2>90-Day Implementation Roadmap</h2>
+        <div class="roadmap-timeline">
+            {% for phase in roadmap %}
+            <div class="roadmap-phase">
+                <div class="phase-header">
+                    <span class="phase-month">Month {{ phase.month }}</span>
+                    <span class="phase-focus">{{ phase.focus }}</span>
+                </div>
+                <ul class="phase-actions">
+                    {% for action in phase.actions %}
+                    <li>{{ action }}</li>
+                    {% endfor %}
+                </ul>
+                <div class="decision-gate">
+                    <strong>Decision Gate:</strong> {{ phase.decision_gate }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Next Steps -->
+    <section>
+        <h2>Next Steps</h2>
+        <div class="executive-summary">
+            <p>
+                <strong>Ready to start your AI journey?</strong> Based on your AI Readiness Score of
+                {{ score.overall_score|int }}/100, we recommend beginning with Priority #1:
+                {{ priorities[0].problem_name if priorities else 'your top business challenge' }}.
+            </p>
+            <p>
+                The 90-day roadmap above provides a clear path forward. Start with Month 1's quick win
+                to build momentum and demonstrate value to stakeholders.
+            </p>
+            <p>
+                <strong>Need help implementing?</strong> Contact us to discuss how we can support your
+                AI implementation journey with hands-on guidance and technical expertise.
+            </p>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="report-footer">
+        <p>AI Readiness Compass Report</p>
+        <p>&copy; {{ year }} - All Rights Reserved</p>
+        <div class="report-id">Report ID: {{ run_id }}</div>
+    </footer>
+</body>
+</html>

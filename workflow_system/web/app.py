@@ -17,6 +17,7 @@ from config import get_container, get_settings
 from web.api.health import router as health_router
 from web.api.tests import router as tests_router
 from web.api.workflows import router as workflows_router
+from web.api.compass import router as compass_router
 
 logger = structlog.get_logger()
 
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/api", tags=["Health"])
     app.include_router(workflows_router, prefix="/api/workflows", tags=["Workflows"])
     app.include_router(tests_router, prefix="/api/tests", tags=["Tests"])
+    app.include_router(compass_router, prefix="/api/compass", tags=["Compass"])
 
     # Static files and templates
     app.mount("/static", StaticFiles(directory="web/ui/static"), name="static")
@@ -83,10 +85,24 @@ def create_app() -> FastAPI:
 
     @app.get("/submit", response_class=HTMLResponse)
     async def submit_form(request: Request):
-        """AI Readiness Compass submission form."""
+        """AI Readiness Compass submission form (legacy route)."""
         return templates.TemplateResponse(
             "submit.html",
             {"request": request, "title": "AI Readiness Compass"},
+        )
+
+    @app.get("/compass", response_class=HTMLResponse)
+    async def compass_form(request: Request):
+        """AI Readiness Compass premium assessment form."""
+        settings = get_settings()
+        return templates.TemplateResponse(
+            "compass.html",
+            {
+                "request": request,
+                "title": "AI Readiness Compass",
+                "stripe_publishable_key": settings.stripe_publishable_key,
+                "price_dollars": settings.compass_price_cents / 100,
+            },
         )
 
     return app

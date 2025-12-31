@@ -125,6 +125,15 @@ class Settings(BaseSettings):
     )
 
     # ===================
+    # Stripe Payment
+    # ===================
+    stripe_secret_key: str = Field(default="", description="Stripe secret key")
+    stripe_publishable_key: str = Field(default="", description="Stripe publishable key")
+    stripe_webhook_secret: str = Field(default="", description="Stripe webhook signing secret")
+    compass_price_cents: int = Field(default=49700, description="AI Readiness Compass price in cents ($497)")
+    compass_test_mode: bool = Field(default=True, description="Enable test mode (bypasses Stripe payment)")
+
+    # ===================
     # Test Runner
     # ===================
     test_runner_default_tier: str = Field(default="Standard", description="Default tier")
