@@ -19,10 +19,12 @@ from .voter import normalize_name
 
 
 class WorkflowSelector:
-    """Selects top workflows from generated candidates using hybrid scoring approach (tier-specific counts)."""
+    """Selects top workflows from generated candidates using hybrid scoring approach (all tiers return 5 workflows)."""
 
     # Domain classification keywords
     DOMAIN_KEYWORDS = {
+        'financial_processing': ['currency', 'conversion', 'accounting', 'invoice', 'payment', 'pricing'],
+        'document_analysis': ['review', 'scan'],
         'data_processing': ['classify', 'extract', 'parse', 'nlp', 'ocr', 'document'],
         'compliance_risk': ['compliance', 'regulatory', 'audit', 'risk', 'legal'],
         'communication': ['email', 'notification', 'report', 'dashboard', 'alert'],
@@ -38,6 +40,14 @@ class WorkflowSelector:
         'was', 'were', 'been', 'have', 'has', 'had', 'from', 'but', 'not'
     }
 
+    # Intent keywords for user prompt analysis
+    INTENT_KEYWORDS = {
+        'document_focus': ['document', 'review', 'analysis', 'processing', 'classification'],
+        'data_focus': ['data', 'dataset', 'database', 'warehouse'],
+        'financial_focus': ['financial', 'accounting', 'invoicing', 'billing'],
+        'communication_focus': ['email', 'notification', 'messaging']
+    }
+
     def __init__(self):
         """Initialize the workflow selector."""
         pass
@@ -50,7 +60,7 @@ class WorkflowSelector:
         consensus_strength: str = "Moderate"
     ) -> List[WorkflowRecommendation]:
         """
-        Select top workflows using hybrid scoring approach (tier-specific counts).
+        Select top workflows using hybrid scoring approach (all tiers return 5 workflows).
 
         Args:
             workflows: List of workflow recommendations (typically ~125 from generation)
@@ -60,7 +70,7 @@ class WorkflowSelector:
 
         Returns:
             List of selected workflow recommendations:
-            - Budget tier: 3 workflows
+            - Budget tier: 5 workflows
             - Standard tier: 5 workflows
             - Premium tier: 5 workflows
         """
@@ -68,7 +78,7 @@ class WorkflowSelector:
             return []
 
         # Determine workflow count based on tier
-        workflow_count = 3 if tier == "Budget" else 5
+        workflow_count = 5  # All tiers now return 5 workflows
 
         if len(workflows) <= workflow_count:
             return workflows[:workflow_count]
@@ -115,20 +125,22 @@ class WorkflowSelector:
         domains_covered: Set[str] = set()
         selected_normalized_names: Set[str] = set()  # Track workflow names to prevent duplicates
 
-        # Only apply semantic floor during fallback mode (weak consensus)
-        # When we have strong/moderate consensus, voting already validated relevance
-        # When we have weak consensus (fallback scoring), use semantic floor to filter irrelevant workflows
-        apply_semantic_floor = len(workflows) >= 50 and consensus_strength == "Weak"
+        # ALWAYS apply semantic floor when we have 50+ workflows
+        # Fix 1: Semantic floor enforcement regardless of consensus strength
+        # Prevents irrelevant workflows from being selected (e.g., "Currency Conversion" for "document review")
+        # Raised threshold from 0.65 to 0.75 for stricter relevance filtering
+        apply_semantic_floor = len(workflows) >= 50
+        SEMANTIC_FLOOR = 0.75
 
         for item in scored:
             if len(selected) >= 5:
                 break
 
             # Skip workflows with low semantic relevance when we have plenty to choose from
-            # (< 0.65 indicates weak keyword overlap with user prompt)
+            # (< 0.75 indicates weak keyword overlap with user prompt)
             # Note: 0.5 is baseline (no overlap), 3.0 is max (high overlap)
             # Threshold filters workflows with minimal relevance to user's specific need
-            if apply_semantic_floor and item['semantic'] < 0.65:
+            if apply_semantic_floor and item['semantic'] < SEMANTIC_FLOOR:
                 continue
 
             # Skip duplicate workflows (same name already selected)
@@ -148,8 +160,17 @@ class WorkflowSelector:
 
             # Prefer uncovered domains
             if domain not in domains_covered:
-                # Apply diversity bonus
-                item['score'] *= 1.5
+                # Fix 2: Scale diversity bonus by semantic relevance
+                # High semantic (>= 1.5): 1.5x bonus
+                # Medium semantic (>= 1.0): 1.3x bonus
+                # Low semantic (< 1.0): 1.1x bonus
+                # Prevents irrelevant workflows from being selected just for domain diversity
+                if item['semantic'] >= 1.5:
+                    item['score'] *= 1.5
+                elif item['semantic'] >= 1.0:
+                    item['score'] *= 1.3
+                else:
+                    item['score'] *= 1.1
                 selected.append(item)
                 domains_covered.add(domain)
                 selected_normalized_names.add(normalized_name)
@@ -173,7 +194,7 @@ class WorkflowSelector:
                 # Skip if already selected or fails semantic floor
                 if normalized_name in selected_normalized_names:
                     continue
-                if apply_semantic_floor and item['semantic'] < 0.65:
+                if apply_semantic_floor and item['semantic'] < SEMANTIC_FLOOR:
                     continue
 
                 # Add workflow to backfill
@@ -206,6 +227,28 @@ class WorkflowSelector:
         weighted = {term: math.log(1 + count) for term, count in freq.items()}
 
         return weighted
+
+    def extract_intent_keywords(self, user_prompt: str) -> Set[str]:
+        """
+        Extract intent categories from user prompt based on keyword matching.
+
+        Args:
+            user_prompt: User's original request/prompt
+
+        Returns:
+            Set of intent category names (e.g., {'document_focus', 'data_focus'})
+        """
+        if not user_prompt:
+            return set()
+
+        prompt_lower = user_prompt.lower()
+        detected_intents = set()
+
+        for intent_name, keywords in self.INTENT_KEYWORDS.items():
+            if any(kw in prompt_lower for kw in keywords):
+                detected_intents.add(intent_name)
+
+        return detected_intents
 
     def calculate_semantic_relevance(
         self,
@@ -241,6 +284,14 @@ class WorkflowSelector:
 
         # Scale to [0.5, 3.0]
         semantic_score = 0.5 + (normalized * 2.5)
+
+        # Apply intent matching boost (2x for matching intents)
+        prompt_intents = self.extract_intent_keywords(user_prompt)
+        wf_intents = self.extract_intent_keywords(wf_text)
+
+        # If workflow matches any of the prompt's detected intents, boost score
+        if prompt_intents and wf_intents and (prompt_intents & wf_intents):
+            semantic_score *= 2.0
 
         return min(3.0, semantic_score)
 

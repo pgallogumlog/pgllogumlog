@@ -65,6 +65,11 @@ After consensus/fallback voting, a HYBRID SELECTOR chooses the final top 5 workf
 - Workflows are from completely wrong industry (e.g., "E-commerce Cart" for legal firm)
 - Workflows have no connection to the business context (e.g., "Social Media Posting" for healthcare M&A)
 - More than 2 workflows (40%+) are truly unrelated to any aspect of the problem
+- **FIX 3 CLARIFICATION - Specificity Requirements**:
+  - "Currency Conversion" for "document review" prompt (no currency/financial aspect mentioned)
+  - "Weather Forecasting" for any business workflow (unless user explicitly mentions weather)
+  - Generic tools that don't address the USER'S SPECIFIC NEED stated in the prompt
+  - Workflows require DIRECT semantic connection to prompt keywords, not just industry tangentially
 
 **YOUR TASK**:
 1. Identify ALL **technical failures** (broken logic, missing data, incorrect outputs)

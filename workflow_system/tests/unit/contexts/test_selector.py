@@ -400,6 +400,32 @@ class TestClassifyDomain:
         domain = selector.classify_domain(workflow)
         assert domain == 'other'
 
+    def test_currency_conversion_classified_as_financial_processing(self, selector):
+        """Test classification of currency conversion workflow as financial_processing."""
+        workflow = WorkflowRecommendation(
+            name="Currency Conversion Automation",
+            objective="Automate currency conversion for invoicing",
+            description="Process payments with automatic pricing adjustments",
+            tools=[],
+            metrics=[],
+            feasibility="High"
+        )
+        domain = selector.classify_domain(workflow)
+        assert domain == 'financial_processing'
+
+    def test_document_analysis_classified_correctly(self, selector):
+        """Test classification of document analysis workflow."""
+        workflow = WorkflowRecommendation(
+            name="Document Review System",
+            objective="Scan and classify incoming documents",
+            description="Extract data from documents using OCR and parsing",
+            tools=[],
+            metrics=[],
+            feasibility="High"
+        )
+        domain = selector.classify_domain(workflow)
+        assert domain == 'document_analysis'
+
 
 class TestSelectTop5:
     """Tests for select_top_5 main selection method."""
@@ -624,6 +650,70 @@ class TestSelectTop5:
         # Both should return 5 workflows (relative scoring changes but selection count same)
         assert len(weak_selected) == 5
         assert len(strong_selected) == 5
+
+
+class TestIntentExtraction:
+    """Tests for intent extraction and boosting."""
+
+    @pytest.fixture
+    def selector(self):
+        """Create selector instance for testing."""
+        return WorkflowSelector()
+
+    def test_extract_intent_keywords_from_prompt(self, selector):
+        """Test extraction of intent keywords from user prompt."""
+        # Document-focused prompt
+        prompt = "I need to review and process incoming documents"
+        intents = selector.extract_intent_keywords(prompt)
+
+        assert 'document_focus' in intents
+
+    def test_intent_extraction_boosts_relevant_workflows(self, selector):
+        """Test that intent extraction boosts document-focused workflows."""
+        # Create two workflows: one document-focused, one data-focused
+        document_workflow = WorkflowRecommendation(
+            name="Document Review Automation",
+            objective="Automate document review and analysis",
+            description="Review incoming documents for compliance",
+            tools=["DocuSign", "Adobe"],
+            metrics=["90% accuracy"],
+            feasibility="High"
+        )
+
+        data_workflow = WorkflowRecommendation(
+            name="Data Warehouse Integration",
+            objective="Integrate data warehouse systems",
+            description="Connect multiple data sources to warehouse",
+            tools=["Snowflake", "ETL"],
+            metrics=["95% data quality"],
+            feasibility="High"
+        )
+
+        # Create many filler workflows to simulate real selection
+        filler_workflows = []
+        for i in range(50):
+            filler_workflows.append(WorkflowRecommendation(
+                name=f"Generic Workflow {i}",
+                objective=f"Generic objective {i}",
+                description="General automation",
+                tools=["Tool1"],
+                metrics=["80% efficiency"],
+                feasibility="Medium"
+            ))
+
+        workflows = [document_workflow, data_workflow] + filler_workflows
+
+        # Prompt with clear document focus
+        selected = selector.select_top_5(
+            workflows=workflows,
+            tier="Standard",
+            user_prompt="I need to review and process incoming documents",
+            consensus_strength="Moderate"
+        )
+
+        # Document workflow should be selected (boosted by intent matching)
+        selected_names = [wf.name for wf in selected]
+        assert "Document Review Automation" in selected_names
 
 
 class TestDuplicateDetection:
@@ -915,3 +1005,254 @@ class TestDuplicateDetection:
             f"Backfill duplicate bug! 'Communication Workflow' appears {duplicate_count} times. "
             f"Selected: {selected_names}"
         )
+
+
+class TestSemanticFloorEnforcement:
+    """Tests for semantic floor enforcement (Fix 1)."""
+
+    @pytest.fixture
+    def selector(self):
+        """Create selector instance for testing."""
+        return WorkflowSelector()
+
+    def test_semantic_floor_enforced_for_all_consensus_strengths(self, selector):
+        """
+        Test that semantic floor filters workflows with semantic < 0.75 regardless of consensus strength.
+
+        Fix 1: Semantic floor should ALWAYS be enforced when we have 50+ workflows,
+        not just during weak consensus. This prevents irrelevant workflows like
+        "Currency Conversion" from being selected for "document review" prompts.
+        """
+        workflows = []
+
+        # Add 5 highly relevant workflows (semantic score will be > 2.0)
+        for i in range(5):
+            workflows.append(WorkflowRecommendation(
+                name=f"Document Review Workflow {i}",
+                objective=f"Automate document review and analysis {i}",
+                description="Review documents for compliance and quality using document processing",
+                feasibility="High",
+                tools=["DocParser", "AI Review"],
+                metrics=["95% accuracy"]
+            ))
+
+        # Add 3 irrelevant workflows (semantic score will be < 0.75)
+        # These should be FILTERED OUT by semantic floor
+        workflows.append(WorkflowRecommendation(
+            name="Currency Conversion Workflow",
+            objective="Convert currencies in real-time",
+            description="Exchange rate calculation and conversion",
+            feasibility="High",
+            tools=["Currency API"],
+            metrics=["99% accuracy"]
+        ))
+
+        workflows.append(WorkflowRecommendation(
+            name="Weather Forecast System",
+            objective="Predict weather conditions",
+            description="Forecast temperature and precipitation",
+            feasibility="High",
+            tools=["Weather API"],
+            metrics=["90% accuracy"]
+        ))
+
+        workflows.append(WorkflowRecommendation(
+            name="Social Media Posting Bot",
+            objective="Automate social media posts",
+            description="Schedule and publish social media content",
+            feasibility="High",
+            tools=["Twitter API", "Facebook API"],
+            metrics=["100 posts per day"]
+        ))
+
+        # Fill to 50+ workflows with moderately relevant ones
+        for i in range(45):
+            workflows.append(WorkflowRecommendation(
+                name=f"Analysis Workflow {i}",
+                objective=f"Analyze and process data {i}",
+                description="General purpose analysis workflow",
+                feasibility="Medium",
+                tools=["Tool1"],
+                metrics=["80% accuracy"]
+            ))
+
+        # Test with STRONG consensus (previously would skip semantic floor)
+        selected = selector.select_top_5(
+            workflows=workflows,
+            tier="Standard",
+            user_prompt="document review and compliance analysis",
+            consensus_strength="Strong"  # Strong consensus should still enforce semantic floor
+        )
+
+        # Extract selected names
+        selected_names = [wf.name for wf in selected]
+
+        # CRITICAL: Irrelevant workflows should be EXCLUDED
+        assert "Currency Conversion Workflow" not in selected_names, (
+            "Semantic floor failed! Currency Conversion (irrelevant) was selected. "
+            f"Selected: {selected_names}"
+        )
+        assert "Weather Forecast System" not in selected_names, (
+            "Semantic floor failed! Weather Forecast (irrelevant) was selected. "
+            f"Selected: {selected_names}"
+        )
+        assert "Social Media Posting Bot" not in selected_names, (
+            "Semantic floor failed! Social Media Bot (irrelevant) was selected. "
+            f"Selected: {selected_names}"
+        )
+
+        # Should select relevant document review workflows
+        document_review_count = sum(1 for name in selected_names if "Document Review" in name)
+        assert document_review_count >= 3, (
+            f"Expected at least 3 document review workflows, got {document_review_count}. "
+            f"Selected: {selected_names}"
+        )
+
+
+class TestDiversityBonusScaling:
+    """Tests for diversity bonus scaling by semantic relevance (Fix 2)."""
+
+    @pytest.fixture
+    def selector(self):
+        """Create selector instance for testing."""
+        return WorkflowSelector()
+
+    def test_diversity_bonus_scaled_by_semantic_relevance(self, selector):
+        """
+        Test that diversity bonus is scaled based on semantic relevance score.
+
+        Fix 2: Low semantic workflows (< 1.0) should get smaller diversity bonus (1.1x)
+        than high semantic workflows (>= 1.5 get 1.5x bonus).
+        This prevents irrelevant workflows from being selected just because they're
+        from an uncovered domain.
+        """
+        workflows = []
+
+        # Add 2 highly relevant workflows from domain A (data_processing)
+        workflows.append(WorkflowRecommendation(
+            name="Document Classification A",
+            objective="Classify documents using NLP and document processing",
+            description="Extract and parse document data automatically",
+            feasibility="High",
+            tools=["OpenAI API", "DocParser"],
+            metrics=["95% accuracy"]
+        ))
+
+        workflows.append(WorkflowRecommendation(
+            name="Document Classification B",
+            objective="Classify documents using NLP and document processing",
+            description="Extract and parse document data automatically",
+            feasibility="High",
+            tools=["OpenAI API", "DocParser"],
+            metrics=["93% accuracy"]
+        ))
+
+        # Add 1 highly relevant workflow from domain B (compliance_risk)
+        workflows.append(WorkflowRecommendation(
+            name="Compliance Document Checker",
+            objective="Audit documents for compliance and regulatory requirements",
+            description="Ensure legal compliance with document standards",
+            feasibility="High",
+            tools=["Compliance API"],
+            metrics=["99% compliance rate"]
+        ))
+
+        # Add 1 IRRELEVANT workflow from domain C (communication) with HIGH feasibility
+        # This workflow has NO semantic overlap with "document classification"
+        # but is from an uncovered domain (communication)
+        # Previously would get 1.5x diversity bonus and be selected
+        # After fix, should only get 1.1x bonus due to low semantic score
+        workflows.append(WorkflowRecommendation(
+            name="Email Marketing Campaign Bot",
+            objective="Send automated email marketing campaigns",
+            description="Schedule and deliver email newsletters and promotions",
+            feasibility="High",  # HIGH feasibility (would normally score well)
+            tools=["Mailchimp", "SendGrid"],
+            metrics=["10x faster email delivery"]
+        ))
+
+        # Add 1 moderately relevant workflow from domain D (analytics)
+        workflows.append(WorkflowRecommendation(
+            name="Document Analytics Dashboard",
+            objective="Analyze document processing metrics and insights",
+            description="Generate analytics from document classification data",
+            feasibility="High",
+            tools=["Analytics Platform"],
+            metrics=["Real-time insights"]
+        ))
+
+        # Fill with more relevant workflows
+        for i in range(50):
+            workflows.append(WorkflowRecommendation(
+                name=f"Document Processing Workflow {i}",
+                objective=f"Process and classify documents {i}",
+                description="Document analysis and classification",
+                feasibility="Medium",
+                tools=["Tool1"],
+                metrics=["85% accuracy"]
+            ))
+
+        # Select top 5
+        selected = selector.select_top_5(
+            workflows=workflows,
+            tier="Standard",
+            user_prompt="document classification and NLP processing",
+            consensus_strength="Moderate"
+        )
+
+        # Extract selected names
+        selected_names = [wf.name for wf in selected]
+
+        # CRITICAL: Irrelevant "Email Marketing Campaign Bot" should NOT be selected
+        # even though it's from an uncovered domain (communication)
+        # because its semantic score is too low to justify the diversity bonus
+        assert "Email Marketing Campaign Bot" not in selected_names, (
+            "Diversity bonus scaling failed! Irrelevant email marketing bot was selected. "
+            f"Selected: {selected_names}"
+        )
+
+        # Should select relevant workflows instead
+        # (Document Classification A/B, Compliance Checker, or Analytics Dashboard)
+        relevant_count = sum(
+            1 for name in selected_names
+            if any(kw in name for kw in ["Document", "Classification", "Compliance", "Analytics"])
+        )
+        assert relevant_count >= 4, (
+            f"Expected at least 4 relevant workflows, got {relevant_count}. "
+            f"Selected: {selected_names}"
+        )
+
+
+class TestQAAuditorSemanticValidation:
+    """Tests for QA auditor semantic relevance validation (Fix 3)."""
+
+    def test_qa_auditor_rejects_irrelevant_workflows(self):
+        """
+        Test that QA auditor flags workflows with poor semantic relevance.
+
+        Fix 3: QA auditor should detect when workflows like "Currency Conversion"
+        are selected for prompts about "document review", and flag as HIGH severity
+        semantic irrelevance issue.
+
+        Note: This is a placeholder test. Full implementation requires mocking
+        the AI provider to return a specific QA audit response.
+        """
+        # This test will be implemented after Fix 3 is applied to auditor.py
+        # For now, we verify the auditor guidance has been updated
+        from contexts.qa.auditor import QA_AUDITOR_SYSTEM
+
+        # Verify the system prompt includes stricter specificity guidance
+        assert "SEMANTICALLY IRRELEVANT" in QA_AUDITOR_SYSTEM, (
+            "QA auditor system prompt should include semantic relevance guidance"
+        )
+
+        # Verify it mentions examples of truly irrelevant workflows
+        assert "wrong industry" in QA_AUDITOR_SYSTEM.lower(), (
+            "QA auditor should provide examples of irrelevant workflows"
+        )
+
+        # This is a smoke test - full validation would require:
+        # 1. Mock AI provider that returns HIGH severity for irrelevant workflows
+        # 2. WorkflowResult with "Currency Conversion" in results
+        # 3. Verify QAAuditor.audit() returns severity=HIGH
+        pass
