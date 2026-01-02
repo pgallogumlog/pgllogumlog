@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
+import structlog
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from contexts.testing.test_cases import TEST_CASES, get_test_cases
 from contexts.testing.compass_test_cases import COMPASS_TEST_CASES, get_compass_test_cases
 from contexts.testing.compass_orchestrator import CompassTestOrchestrator
 
+logger = structlog.get_logger()
 router = APIRouter()
 
 
@@ -279,8 +281,11 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
     """
     Parse metadata from HTML result filename.
 
-    Filename format: {tier}_{company}_{timestamp}_{run_id}.html
-    Example: Standard_Acme_Corp_20231227_145030_abc12345.html
+    Supports two filename formats:
+    1. Workflow format: {tier}_{company}_{timestamp}_{run_id}.html
+       Example: Standard_Acme_Corp_20231227_145030_abc12345.html
+    2. Compass format: compass_{company}_{timestamp}.html
+       Example: compass_Acme_Corp_20231227_145030.html
 
     Args:
         filename: HTML filename
@@ -300,19 +305,42 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
     name_without_ext = filename[:-5] if filename.endswith('.html') else filename
     parts = name_without_ext.split('_')
 
-    # Extract components
-    tier = parts[0] if len(parts) > 0 else 'Unknown'
-    run_id = parts[-1] if len(parts) > 0 else 'Unknown'
+    # Check if this is a compass format file
+    if parts[0].lower() == 'compass':
+        # Compass format: compass_{company}_{timestamp}.html
+        tier = 'Compass'
 
-    # Company is everything between tier and last two parts (timestamp and run_id)
-    company_parts = parts[1:-2] if len(parts) > 3 else []
-    company = ' '.join(company_parts) if company_parts else 'Unknown'
+        # Last part is timestamp (YYYYMMDD_HHMMSS or just timestamp)
+        timestamp_str = parts[-1] if len(parts) > 1 else ''
+
+        # Company is everything between 'compass' and timestamp
+        company_parts = parts[1:-1] if len(parts) > 2 else []
+        company = ' '.join(company_parts) if company_parts else 'Unknown'
+
+        # No run_id in compass format, use timestamp as run_id
+        run_id = timestamp_str[:8] if len(timestamp_str) >= 8 else 'unknown'
+
+    else:
+        # Workflow format: {tier}_{company}_{timestamp}_{run_id}.html
+        tier = parts[0] if len(parts) > 0 else 'Unknown'
+        run_id = parts[-1] if len(parts) > 0 else 'Unknown'
+
+        # Company is everything between tier and last two parts (timestamp and run_id)
+        company_parts = parts[1:-2] if len(parts) > 3 else []
+        company = ' '.join(company_parts) if company_parts else 'Unknown'
+
+        # Timestamp is second to last part
+        timestamp_str = parts[-2] if len(parts) > 2 else ''
 
     # Parse timestamp
-    timestamp_str = parts[-2] if len(parts) > 2 else ''
     try:
-        # Parse format: YYYYMMDD_HHMMSS
-        dt = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+        # Parse format: YYYYMMDD_HHMMSS or YYYYMMDD
+        if '_' in timestamp_str:
+            dt = datetime.strptime(timestamp_str, '%Y%m%d_%H%M%S')
+        elif len(timestamp_str) >= 8:
+            dt = datetime.strptime(timestamp_str[:8], '%Y%m%d')
+        else:
+            raise ValueError("Invalid timestamp format")
         timestamp = dt.isoformat()
     except (ValueError, IndexError):
         timestamp = datetime.fromtimestamp(stat.st_mtime).isoformat()
@@ -661,37 +689,44 @@ async def _run_compass_tests_background(
             category=category,
         )
 
-        # Save HTML reports if requested
-        logger.info(
-            "compass_html_save_check",
-            save_html=save_html,
-            result_count=len(result.results) if result.results else 0,
-        )
-        if save_html and result.results:
-            html_dir = Path("test_results")
-            html_dir.mkdir(parents=True, exist_ok=True)
-            logger.info("compass_html_dir_created", dir=str(html_dir.absolute()))
+        # Save HTML reports if requested (wrapped in try/except to not break test flow)
+        html_save_errors = []
+        try:
+            logger.info(
+                "compass_html_save_check",
+                save_html=save_html,
+                result_count=len(result.results) if result.results else 0,
+            )
+            if save_html and result.results:
+                html_dir = Path("test_results")
+                html_dir.mkdir(parents=True, exist_ok=True)
+                logger.info("compass_html_dir_created", dir=str(html_dir.absolute()))
 
-            for test_result in result.results:
-                logger.info(
-                    "compass_html_check_result",
-                    company=test_result.company_name,
-                    success=test_result.success,
-                    has_html=bool(test_result.report_html),
-                    html_length=len(test_result.report_html) if test_result.report_html else 0,
-                )
-                if test_result.success and test_result.report_html:
-                    # Create filename from company name and timestamp
-                    company_slug = test_result.company_name.replace(" ", "_").replace("/", "-")[:50]
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"compass_{company_slug}_{timestamp}.html"
-                    filepath = html_dir / filename
+                for test_result in result.results:
+                    logger.info(
+                        "compass_html_check_result",
+                        company=test_result.company_name,
+                        success=test_result.success,
+                        has_html=bool(test_result.report_html),
+                        html_length=len(test_result.report_html) if test_result.report_html else 0,
+                    )
+                    if test_result.success and test_result.report_html:
+                        # Create filename from company name and timestamp
+                        company_slug = test_result.company_name.replace(" ", "_").replace("/", "-")[:50]
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"compass_{company_slug}_{timestamp}.html"
+                        filepath = html_dir / filename
 
-                    filepath.write_text(test_result.report_html, encoding="utf-8")
-                    logger.info("compass_html_saved", filepath=str(filepath))
+                        filepath.write_text(test_result.report_html, encoding="utf-8")
+                        logger.info("compass_html_saved", filepath=str(filepath))
+        except Exception as html_error:
+            logger.error("compass_html_save_failed", error=str(html_error))
+            html_save_errors.append(str(html_error))
 
         _compass_test_results[run_id]["status"] = "completed"
         _compass_test_results[run_id]["result"] = result.to_dict()
+        if html_save_errors:
+            _compass_test_results[run_id]["html_save_errors"] = html_save_errors
 
     except Exception as e:
         _compass_test_results[run_id]["status"] = "failed"

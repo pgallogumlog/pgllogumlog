@@ -88,9 +88,23 @@ async def process_workflow(request: WorkflowRequest):
     container = get_container()
 
     try:
-        # Create workflow engine
+        # Generate unique run ID
+        import uuid
+        run_id = str(uuid.uuid4())[:8]
+
+        # Use capturing adapter if QA is enabled (default: True)
+        if request.run_qa:
+            ai_provider = container.capturing_ai_provider(
+                run_id=run_id,
+                run_probabilistic=container.settings.qa_run_probabilistic,
+                probabilistic_sample_rate=container.settings.qa_probabilistic_sample_rate,
+            )
+        else:
+            ai_provider = container.ai_provider()
+
+        # Create workflow engine with QA capture if enabled
         engine = WorkflowEngine(
-            ai_provider=container.ai_provider(),
+            ai_provider=ai_provider,
             temperatures=container.settings.temperatures,
             min_consensus_votes=container.settings.sc_min_consensus_votes,
         )
@@ -123,12 +137,43 @@ async def process_workflow(request: WorkflowRequest):
             proposal_html=result.proposal.html_body,
         )
 
-        # Run QA if requested
+        # Run QA if requested and log to Google Sheets
         if request.run_qa:
-            qa_auditor = QAAuditor(ai_provider=container.ai_provider())
+            # Run semantic QA audit
+            qa_auditor = QAAuditor(
+                ai_provider=container.ai_provider(),
+                sheets_client=container.sheets_client(),
+                qa_spreadsheet_id=container.settings.google_sheets_qa_log_id,
+            )
             qa_result = await qa_auditor.audit(result)
             response.qa_score = qa_result.score
             response.qa_passed = qa_result.passed
+
+            # Log QA results to Google Sheets (both per-call and summary)
+            if hasattr(ai_provider, 'call_store'):
+                from contexts.qa.sheets_logger import QASheetsLogger
+
+                qa_logger = QASheetsLogger(
+                    sheets_client=container.sheets_client(),
+                    spreadsheet_id=container.settings.google_sheets_qa_log_id,
+                    call_log_sheet=container.settings.qa_call_log_sheet,
+                    summary_sheet=container.settings.qa_summary_sheet,
+                )
+
+                # Log all captured calls and workflow summary
+                calls_logged, summary_logged = await qa_logger.log_complete_workflow(
+                    call_store=ai_provider.call_store,
+                    client_name=result.client_name,
+                    run_id=result.run_id,
+                    semantic_result=qa_result,
+                )
+
+                logger.info(
+                    "qa_logged_to_sheets",
+                    run_id=result.run_id,
+                    calls_logged=calls_logged,
+                    summary_logged=summary_logged,
+                )
 
         # Send email if requested
         if request.send_email:

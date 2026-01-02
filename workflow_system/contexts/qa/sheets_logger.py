@@ -210,10 +210,11 @@ class QASheetsLogger:
         semantic_result: Optional[QAResult] = None,
     ) -> tuple[int, bool]:
         """
-        Log workflow summary to QA Logs sheet.
+        Log complete workflow QA data to both sheets.
 
-        Note: Per-call logging (AI Call Log) has been removed to reduce
-        Sheets API writes. Only the semantic audit summary is logged.
+        Logs:
+        1. Per-call details to "AI Call Log" sheet (each AI call with validation results)
+        2. Workflow summary to "QA Logs" sheet (overall semantic audit)
 
         Args:
             call_store: Store containing all captured AI calls
@@ -222,9 +223,12 @@ class QASheetsLogger:
             semantic_result: Optional semantic QA result
 
         Returns:
-            Tuple of (calls_logged, summary_logged) - calls_logged always 0
+            Tuple of (calls_logged, summary_logged)
         """
-        # Log summary only (per-call logging removed)
+        # Log all individual calls to AI Call Log sheet
+        calls_logged = await self.log_all_calls(call_store.calls)
+
+        # Log workflow summary to QA Logs sheet
         summary_logged = await self.log_workflow_summary(
             call_store=call_store,
             client_name=client_name,
@@ -232,7 +236,7 @@ class QASheetsLogger:
             semantic_result=semantic_result,
         )
 
-        return 0, summary_logged
+        return calls_logged, summary_logged
 
     def _extract_top_issues(self, call_store: AICallStore) -> list[str]:
         """Extract top issues from failed calls."""

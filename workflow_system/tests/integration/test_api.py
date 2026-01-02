@@ -628,9 +628,20 @@ class TestCompassHtmlSaving:
             mock_orch_instance = MockOrchestrator.return_value
             mock_orch_instance.run_tests = AsyncMock(return_value=mock_result)
 
+            # Initialize the results dictionary (normally done by run_compass_tests endpoint)
+            from web.api.tests import _compass_test_results
+            run_id = "test-123"
+            _compass_test_results[run_id] = {
+                "status": "running",
+                "count": 1,
+                "category": None,
+                "started_at": None,
+                "result": None,
+            }
+
             # Run the background task
             await _run_compass_tests_background(
-                run_id="test-123",
+                run_id=run_id,
                 count=1,
                 category=None,
                 max_parallel=1,
