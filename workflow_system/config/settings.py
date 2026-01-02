@@ -134,6 +134,13 @@ class Settings(BaseSettings):
     compass_test_mode: bool = Field(default=True, description="Enable test mode (bypasses Stripe payment)")
 
     # ===================
+    # Web Research APIs
+    # ===================
+    tavily_api_key: str = Field(default="", description="Tavily API key for web search")
+    serp_api_key: str = Field(default="", description="SerpAPI key for Google search")
+    enable_web_research: bool = Field(default=True, description="Enable real web research")
+
+    # ===================
     # Test Runner
     # ===================
     test_runner_default_tier: str = Field(default="Standard", description="Default tier")

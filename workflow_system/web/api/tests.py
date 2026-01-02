@@ -13,6 +13,8 @@ from config import get_container
 from contexts.testing import TestConfig, TestOrchestrator
 from contexts.testing.models import Environment, Tier
 from contexts.testing.test_cases import TEST_CASES, get_test_cases
+from contexts.testing.compass_test_cases import COMPASS_TEST_CASES, get_compass_test_cases
+from contexts.testing.compass_orchestrator import CompassTestOrchestrator
 
 router = APIRouter()
 
@@ -512,3 +514,218 @@ async def delete_all_html_results():
         deleted_count=len(deleted_files),
         deleted_files=deleted_files
     )
+
+
+# ===================
+# COMPASS TEST ENDPOINTS
+# ===================
+
+# Store for compass test results (in-memory for now)
+_compass_test_results: dict = {}
+
+
+class CompassTestRunRequest(BaseModel):
+    """Request to run Compass tests."""
+
+    count: int = Field(default=5, ge=1, le=15)
+    category: Optional[str] = None  # e.g., "Low Readiness", "High Readiness"
+    max_parallel: int = Field(default=3, ge=1, le=5)
+    save_html: bool = Field(default=True)  # Save HTML reports to disk
+
+
+class CompassTestCaseInfo(BaseModel):
+    """Information about a Compass test case."""
+
+    company_name: str
+    industry: str
+    company_size: str
+    category: str
+    data_maturity: int
+    automation_experience: int
+    change_readiness: int
+    pain_point: str
+    expected_score_range: Optional[tuple]
+
+
+@router.get("/compass/cases")
+async def list_compass_test_cases(
+    count: int = 15,
+    category: Optional[str] = None,
+):
+    """List available Compass test cases."""
+    cases = get_compass_test_cases(count)
+
+    if category:
+        cases = [c for c in cases if c.category == category]
+
+    categories = list(set(c.category for c in COMPASS_TEST_CASES))
+
+    return {
+        "total": len(cases),
+        "categories": categories,
+        "cases": [
+            {
+                "company_name": c.company_name,
+                "industry": c.industry,
+                "company_size": c.company_size,
+                "category": c.category,
+                "data_maturity": c.data_maturity,
+                "automation_experience": c.automation_experience,
+                "change_readiness": c.change_readiness,
+                "pain_point": c.pain_point,
+                "expected_score_range": c.expected_score_range,
+            }
+            for c in cases
+        ],
+    }
+
+
+@router.post("/compass/run")
+async def run_compass_tests(
+    request: CompassTestRunRequest,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Run Compass tests.
+
+    Tests run in the background. Use /tests/compass/status/{run_id} to check progress.
+    """
+    import uuid
+
+    container = get_container()
+    run_id = f"compass-test-{uuid.uuid4().hex[:8]}"
+
+    # Get AI provider
+    ai_provider = container.ai_provider()
+
+    # Get email client (optional)
+    try:
+        email_client = container.email_client()
+    except Exception:
+        email_client = None
+
+    # Store initial status
+    _compass_test_results[run_id] = {
+        "status": "running",
+        "count": request.count,
+        "category": request.category,
+        "started_at": None,
+        "result": None,
+    }
+
+    # Add background task
+    background_tasks.add_task(
+        _run_compass_tests_background,
+        run_id=run_id,
+        count=request.count,
+        category=request.category,
+        max_parallel=request.max_parallel,
+        ai_provider=ai_provider,
+        email_client=email_client,
+        save_html=request.save_html,
+    )
+
+    return {
+        "message": f"Compass test run initiated with {request.count} tests",
+        "run_id": run_id,
+        "count": request.count,
+        "category": request.category,
+        "status_url": f"/api/tests/compass/status/{run_id}",
+    }
+
+
+async def _run_compass_tests_background(
+    run_id: str,
+    count: int,
+    category: Optional[str],
+    max_parallel: int,
+    ai_provider,
+    email_client=None,
+    save_html: bool = True,
+):
+    """Run Compass tests in the background."""
+    from datetime import datetime
+    from pathlib import Path
+
+    _compass_test_results[run_id]["started_at"] = datetime.now().isoformat()
+
+    try:
+        orchestrator = CompassTestOrchestrator(
+            ai_provider=ai_provider,
+            email_client=email_client,
+            max_parallel=max_parallel,
+        )
+
+        result = await orchestrator.run_tests(
+            count=count,
+            category=category,
+        )
+
+        # Save HTML reports if requested
+        logger.info(
+            "compass_html_save_check",
+            save_html=save_html,
+            result_count=len(result.results) if result.results else 0,
+        )
+        if save_html and result.results:
+            html_dir = Path("test_results")
+            html_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("compass_html_dir_created", dir=str(html_dir.absolute()))
+
+            for test_result in result.results:
+                logger.info(
+                    "compass_html_check_result",
+                    company=test_result.company_name,
+                    success=test_result.success,
+                    has_html=bool(test_result.report_html),
+                    html_length=len(test_result.report_html) if test_result.report_html else 0,
+                )
+                if test_result.success and test_result.report_html:
+                    # Create filename from company name and timestamp
+                    company_slug = test_result.company_name.replace(" ", "_").replace("/", "-")[:50]
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"compass_{company_slug}_{timestamp}.html"
+                    filepath = html_dir / filename
+
+                    filepath.write_text(test_result.report_html, encoding="utf-8")
+                    logger.info("compass_html_saved", filepath=str(filepath))
+
+        _compass_test_results[run_id]["status"] = "completed"
+        _compass_test_results[run_id]["result"] = result.to_dict()
+
+    except Exception as e:
+        _compass_test_results[run_id]["status"] = "failed"
+        _compass_test_results[run_id]["error"] = str(e)
+
+
+@router.get("/compass/status/{run_id}")
+async def get_compass_test_status(run_id: str):
+    """Get status of a Compass test run."""
+    if run_id not in _compass_test_results:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Test run not found: {run_id}",
+        )
+
+    return _compass_test_results[run_id]
+
+
+@router.get("/compass/results")
+async def list_compass_test_results():
+    """List all Compass test run results."""
+    return {
+        "total": len(_compass_test_results),
+        "runs": [
+            {
+                "run_id": run_id,
+                "status": data["status"],
+                "count": data.get("count"),
+                "category": data.get("category"),
+                "started_at": data.get("started_at"),
+                "passed": data.get("result", {}).get("passed_tests") if data.get("result") else None,
+                "failed": data.get("result", {}).get("failed_tests") if data.get("result") else None,
+                "avg_score": data.get("result", {}).get("avg_score") if data.get("result") else None,
+            }
+            for run_id, data in _compass_test_results.items()
+        ],
+    }

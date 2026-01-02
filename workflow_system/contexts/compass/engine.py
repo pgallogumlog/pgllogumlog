@@ -1,9 +1,11 @@
 """
 Compass Engine - Main orchestrator for AI Readiness Compass.
 
+UPGRADED: Now includes REAL web research for premium insights.
+
 Coordinates the full pipeline:
 1. Self-assessment scoring (30%)
-2. Parallel research agents (70%)
+2. Parallel research agents with REAL web search (70%)
 3. Hybrid AI Readiness Score calculation
 4. Priority analysis with solutions
 5. Report generation
@@ -27,6 +29,7 @@ from contexts.compass.scoring import SelfAssessmentScorer
 from contexts.compass.agents.orchestrator import ResearchOrchestrator
 from contexts.compass.analyzer import PriorityAnalyzer
 from contexts.compass.generator import CompassReportGenerator
+from infrastructure.research.rag_orchestrator import RAGOrchestrator
 
 logger = structlog.get_logger()
 
@@ -113,14 +116,32 @@ class CompassEngine:
         ai_provider: AIProvider,
         payment_client: Optional[PaymentClient] = None,
         email_client: Optional[EmailClient] = None,
+        tavily_api_key: Optional[str] = None,
+        serp_api_key: Optional[str] = None,
+        enable_web_research: bool = True,
     ):
         self._ai = ai_provider
         self._payment = payment_client
         self._email = email_client
 
+        # Initialize RAG orchestrator with Claude's native web search
+        self._rag_orchestrator = None
+        if enable_web_research:
+            # Get API key from ai_provider (ClaudeAdapter has _api_key)
+            api_key = getattr(ai_provider, '_api_key', None)
+            if api_key:
+                self._rag_orchestrator = RAGOrchestrator(
+                    api_key=api_key,
+                    use_web_search=True,  # Use Claude's native web search
+                )
+                logger.info("rag_orchestrator_enabled", use_web_search=True)
+
         # Initialize sub-components
         self._scorer = SelfAssessmentScorer()
-        self._research = ResearchOrchestrator(ai_provider)
+        self._research = ResearchOrchestrator(
+            ai_provider=ai_provider,
+            web_research=self._rag_orchestrator,
+        )
         self._analyzer = PriorityAnalyzer(ai_provider)
         self._generator = CompassReportGenerator(ai_provider)
 
@@ -355,3 +376,8 @@ class CompassEngine:
             body=body,
             html=True,
         )
+
+    async def close(self):
+        """Cleanup resources."""
+        # RAGOrchestrator doesn't need explicit cleanup
+        pass

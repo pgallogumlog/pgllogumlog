@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Readiness Compass - {{ company_name }}</title>
+    <title>AI Readiness Compass - Pinnacle Commercial Properties</title>
     <style>
         :root {
             --primary: #1a1a2e;
@@ -75,7 +75,7 @@
             height: 180px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.1);
-            border: 6px solid {{ score_color }};
+            border: 6px solid #ff4444;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -86,7 +86,7 @@
         .score-number {
             font-size: 3.5rem;
             font-weight: 700;
-            color: {{ score_color }};
+            color: #ff4444;
         }
 
         .score-label {
@@ -727,26 +727,26 @@
     <!-- Report Header -->
     <header class="report-header">
         <h1>AI Readiness Compass</h1>
-        <div class="company-name">{{ company_name }}</div>
-        <div class="meta">{{ industry }} | {{ company_size }} employees</div>
-        <div class="meta">Prepared for {{ contact_name }} | {{ generated_date }}</div>
+        <div class="company-name">Pinnacle Commercial Properties</div>
+        <div class="meta">Commercial Real Estate | 50-200 employees employees</div>
+        <div class="meta">Prepared for Sarah Chen | December 31, 2025</div>
     </header>
 
     <!-- AI Readiness Score -->
     <section class="score-section">
         <div class="score-circle">
-            <span class="score-number">{{ score.overall_score|int }}</span>
+            <span class="score-number">29</span>
             <span class="score-label">out of 100</span>
         </div>
-        <div class="readiness-level">{{ readiness_level }} Level</div>
+        <div class="readiness-level">Beginner Level</div>
         <p>Your organization's AI implementation readiness</p>
         <div class="score-breakdown">
             <div class="breakdown-item">
-                <div class="breakdown-value">{{ score.self_assessment_score|int }}</div>
+                <div class="breakdown-value">58</div>
                 <div class="breakdown-label">Self-Assessment</div>
             </div>
             <div class="breakdown-item">
-                <div class="breakdown-value">{{ score.research_score|int }}</div>
+                <div class="breakdown-value">17</div>
                 <div class="breakdown-label">Research Score</div>
             </div>
         </div>
@@ -756,9 +756,13 @@
     <section>
         <h2>Executive Summary</h2>
         <div class="executive-summary">
-            {% for paragraph in executive_summary.split('\n\n') %}
-            <p>{{ paragraph }}</p>
-            {% endfor %}
+            
+            <p>Pinnacle Commercial Properties has achieved an AI Readiness Score of 30/100, positioning the company in the early adoption phase with significant untapped potential for operational transformation. While this score indicates room for growth, it also represents a tremendous opportunity to gain competitive advantage in the commercial real estate market through strategic AI implementation. Your current infrastructure provides a solid foundation for rapid improvement, particularly in addressing critical operational bottlenecks.</p>
+            
+            <p>The most impactful opportunity lies in revolutionizing your tenant communication response system. By implementing an Intercom Inbox integrated with a basic AI resolution bot, Pinnacle can achieve a 50% reduction in response times within just 30 days while delivering 30% time savings for property managers. This solution directly addresses your tenant communication crisis and will dramatically improve tenant satisfaction scores, reduce churn, and free up your team to focus on high-value activities like lease negotiations and property development.</p>
+            
+            <p>The time to act is now. Commercial real estate leaders who implement AI-driven communication systems today will capture market share from slower competitors tomorrow. Let's schedule your AI implementation roadmap session to transform these insights into measurable results within the next quarter.</p>
+            
         </div>
     </section>
 
@@ -770,328 +774,228 @@
         </p>
 
         <!-- Company Technology Analysis -->
-        {% if research.company %}
+        
         <div class="research-card" style="background: var(--bg-alt); border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid var(--accent);">
             <h3 style="color: var(--primary); margin-bottom: 15px;">Your Technology Profile</h3>
 
-            {% if research.company.detected_technologies %}
-            <div style="margin-bottom: 15px;">
-                <strong>Technologies Detected:</strong>
-                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
-                    {% for tech in research.company.detected_technologies %}
-                    <span class="tool-tag">{{ tech }}</span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
+            
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
                 <div>
-                    <strong>Digital Maturity:</strong> {{ research.company.digital_maturity_score|default('N/A') }}/10
+                    <strong>Digital Maturity:</strong> 0/10
                 </div>
                 <div>
-                    <strong>Data Infrastructure:</strong> {{ research.company.data_infrastructure_score|default('N/A') }}/10
+                    <strong>Data Infrastructure:</strong> 0/10
                 </div>
             </div>
 
-            {% if research.company.digital_strengths %}
-            <div style="margin-bottom: 10px;">
-                <strong style="color: #28a745;">Strengths:</strong>
-                <ul style="margin: 5px 0 0 20px;">
-                    {% for strength in research.company.digital_strengths[:3] %}
-                    <li>{{ strength }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
+            
 
-            {% if research.company.digital_gaps %}
-            <div style="margin-bottom: 10px;">
-                <strong style="color: #dc3545;">Gaps Identified:</strong>
-                <ul style="margin: 5px 0 0 20px;">
-                    {% for gap in research.company.digital_gaps[:3] %}
-                    <li>{{ gap }}</li>
-                    {% endfor %}
-                </ul>
-            </div>
-            {% endif %}
+            
 
-            {% if research.company.executive_summary %}
+            
             <div style="margin-top: 15px; padding: 15px; background: white; border-radius: 8px;">
-                <em>{{ research.company.executive_summary }}</em>
+                <em>Unable to assess AI readiness for Pinnacle Commercial Properties as no search results were provided. Analysis requires actual web search data to evaluate technology stack, digital maturity, and AI adoption signals.</em>
             </div>
-            {% endif %}
+            
         </div>
-        {% endif %}
+        
 
         <!-- Industry Intelligence -->
-        {% if research.industry %}
+        
         <div class="research-card" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f7fa 100%); border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid #00d4ff;">
             <h3 style="color: var(--primary); margin-bottom: 15px;">Industry Intelligence</h3>
 
             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">{{ research.industry.maturity_level|default('Growing')|title }}</div>
+                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">Not Found In Provided Search Results</div>
                     <div style="font-size: 0.85rem; color: var(--text-light);">AI Maturity</div>
                 </div>
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">{{ research.industry.competitive_urgency|default('Medium')|title }}</div>
+                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">Not Found In Provided Search Results</div>
                     <div style="font-size: 0.85rem; color: var(--text-light);">Competitive Urgency</div>
                 </div>
                 <div style="background: white; padding: 15px; border-radius: 8px; text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">{{ research.industry.adoption_rate|default('Varies') }}</div>
+                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--accent);">Not found in provided search results</div>
                     <div style="font-size: 0.85rem; color: var(--text-light);">Adoption Rate</div>
                 </div>
             </div>
 
-            {% if research.industry.key_statistics %}
+            
             <div style="margin-bottom: 20px;">
                 <h4 style="margin-bottom: 10px;">Key Industry Statistics</h4>
                 <table class="citation-table">
-                    {% for stat in research.industry.key_statistics[:5] %}
+                    
                     <tr>
-                        <td>{{ stat.stat }}
-                            {% if stat.source_url %}
-                            <a href="{{ stat.source_url }}" target="_blank" class="cite cite-{{ stat.credibility|default('medium') }}">{{ stat.source }}</a>
-                            {% else %}
-                            <span class="cite cite-{{ stat.credibility|default('medium') }}">{{ stat.source }}</span>
-                            {% endif %}
+                        <td>Not found in provided search results
+                            
+                            <a href="N/A" target="_blank" class="cite cite-medium">N/A</a>
+                            
                         </td>
                         <td>
-                            <span class="credibility-indicator credibility-{{ stat.credibility|default('medium') }}">{{ stat.credibility|default('medium')|upper }}</span>
+                            <span class="credibility-indicator credibility-medium">MEDIUM</span>
                         </td>
                     </tr>
-                    {% endfor %}
+                    
                 </table>
             </div>
-            {% endif %}
+            
 
-            {% if research.industry.leading_competitors %}
+            
             <div style="margin-bottom: 20px;">
                 <h4 style="margin-bottom: 10px;">Competitor AI Initiatives</h4>
-                {% for comp in research.industry.leading_competitors[:3] %}
+                
                 <div class="source-item">
                     <div class="source-item-content">
-                        <div class="source-item-title">{{ comp.company_name }}</div>
-                        <div>{{ comp.ai_initiative }}</div>
-                        {% if comp.source_url %}
-                        <a href="{{ comp.source_url }}" target="_blank" class="source-item-url">{{ comp.source }}</a>
-                        {% elif comp.source %}
-                        <span class="cite cite-{{ comp.credibility|default('medium') }}">{{ comp.source }}</span>
-                        {% endif %}
+                        <div class="source-item-title">Not found in provided search results</div>
+                        <div>Not found in provided search results</div>
+                        
+                        <a href="N/A" target="_blank" class="source-item-url">N/A</a>
+                        
                     </div>
                 </div>
-                {% endfor %}
+                
             </div>
-            {% endif %}
+            
 
             <!-- ROI Benchmarks -->
-            {% if research.industry.typical_roi or research.industry.time_to_value %}
+            
             <div style="background: white; padding: 15px; border-radius: 8px;">
                 <h4 style="margin-bottom: 10px;">ROI Benchmarks</h4>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    {% if research.industry.typical_roi %}
-                    <div><strong>Typical ROI:</strong> {{ research.industry.typical_roi }}</div>
-                    {% endif %}
-                    {% if research.industry.time_to_value %}
-                    <div><strong>Time to Value:</strong> {{ research.industry.time_to_value }}</div>
-                    {% endif %}
-                    {% if research.industry.cost_range %}
-                    <div><strong>Cost Range:</strong> {{ research.industry.cost_range }}</div>
-                    {% endif %}
-                    {% if research.industry.success_rate %}
-                    <div><strong>Success Rate:</strong> {{ research.industry.success_rate }}</div>
-                    {% endif %}
+                    
+                    <div><strong>Typical ROI:</strong> Not found in provided search results</div>
+                    
+                    
+                    <div><strong>Time to Value:</strong> Not found in provided search results</div>
+                    
+                    
+                    <div><strong>Cost Range:</strong> Not found in provided search results</div>
+                    
+                    
+                    <div><strong>Success Rate:</strong> Not found in provided search results</div>
+                    
                 </div>
             </div>
-            {% endif %}
+            
         </div>
-        {% endif %}
+        
 
         <!-- Case Studies with Citations -->
-        {% if research.whitepaper and research.whitepaper.case_studies %}
-        <div class="research-card" style="background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%); border-radius: 12px; padding: 25px; margin-bottom: 25px; border-left: 4px solid var(--success);">
-            <h3 style="color: var(--primary); margin-bottom: 15px;">Relevant Case Studies</h3>
-
-            {% for cs in research.whitepaper.case_studies[:4] %}
-            <div style="background: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
-                    <h4 style="margin: 0; color: var(--secondary);">{{ cs.company }}</h4>
-                    {% if cs.credibility %}
-                    <span class="credibility-indicator credibility-{{ cs.credibility }}">{{ cs.credibility|upper }} CREDIBILITY</span>
-                    {% endif %}
-                </div>
-
-                {% if cs.industry %}
-                <div style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 10px;">Industry: {{ cs.industry }}</div>
-                {% endif %}
-
-                {% if cs.challenge %}
-                <div style="margin-bottom: 8px;">
-                    <strong>Challenge:</strong> {{ cs.challenge }}
-                </div>
-                {% endif %}
-
-                {% if cs.solution %}
-                <div style="margin-bottom: 8px;">
-                    <strong>Solution:</strong> {{ cs.solution }}
-                </div>
-                {% endif %}
-
-                {% if cs.primary_result %}
-                <div style="background: #d4edda; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                    <strong style="color: #155724;">Result:</strong>
-                    <span style="color: #155724;">{{ cs.primary_result }}</span>
-                </div>
-                {% endif %}
-
-                {% if cs.vendor_tools %}
-                <div style="margin-bottom: 10px;">
-                    <strong>Tools Used:</strong>
-                    {% for tool in cs.vendor_tools %}
-                    <span class="tool-tag" style="background: #e9ecef; color: var(--text);">{{ tool }}</span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-
-                {% if cs.source_url %}
-                <div class="source-card">
-                    <div class="source-card-header">
-                        <span class="source-icon">📄</span>
-                        <span class="source-title">{{ cs.source_title|default('Source') }}</span>
-                        <span class="credibility-indicator credibility-{{ cs.credibility|default('medium') }}">{{ cs.credibility|default('medium')|upper }}</span>
-                    </div>
-                    <a href="{{ cs.source_url }}" target="_blank" class="source-url">{{ cs.source_url }}</a>
-                </div>
-                {% endif %}
-            </div>
-            {% endfor %}
-
-            {% if research.whitepaper.implementation %}
-            <div style="background: white; padding: 20px; border-radius: 10px; margin-top: 20px;">
-                <h4 style="margin-bottom: 15px;">Implementation Benchmarks</h4>
-                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
-                    {% if research.whitepaper.implementation.average_timeline %}
-                    <div>
-                        <strong>Avg. Timeline:</strong><br>
-                        {{ research.whitepaper.implementation.average_timeline }}
-                    </div>
-                    {% endif %}
-                    {% if research.whitepaper.implementation.budget_medium %}
-                    <div>
-                        <strong>Mid-Size Budget:</strong><br>
-                        {{ research.whitepaper.implementation.budget_medium }}
-                    </div>
-                    {% endif %}
-                </div>
-
-                {% if research.whitepaper.implementation.success_factors %}
-                <div style="margin-top: 15px;">
-                    <strong>Success Factors:</strong>
-                    <ul style="margin: 5px 0 0 20px;">
-                        {% for factor in research.whitepaper.implementation.success_factors[:3] %}
-                        <li>{{ factor }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
-        </div>
-        {% endif %}
+        
 
         <!-- Vendor Landscape -->
-        {% if research.whitepaper and research.whitepaper.vendors %}
+        
         <div class="research-card" style="background: var(--bg-alt); border-radius: 12px; padding: 25px; margin-bottom: 25px;">
             <h3 style="color: var(--primary); margin-bottom: 15px;">Vendor Landscape</h3>
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                {% if research.whitepaper.vendors.leaders %}
-                <div>
-                    <h4 style="color: var(--success); margin-bottom: 10px;">Market Leaders</h4>
-                    <ul style="margin: 0 0 0 20px;">
-                        {% for leader in research.whitepaper.vendors.leaders[:4] %}
-                        <li>{{ leader }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
-                {% if research.whitepaper.vendors.challengers %}
-                <div>
-                    <h4 style="color: var(--accent); margin-bottom: 10px;">Emerging Players</h4>
-                    <ul style="margin: 0 0 0 20px;">
-                        {% for challenger in research.whitepaper.vendors.challengers[:4] %}
-                        <li>{{ challenger }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+                
+                
             </div>
         </div>
-        {% endif %}
+        
 
         <!-- Research Sources Summary -->
-        {% if all_citations %}
-        <div class="research-sources">
-            <h4><span class="source-icon">📚</span> Research Sources ({{ all_citations|length }} citations)</h4>
-            <div class="source-list">
-                {% for citation in all_citations[:10] %}
-                <div class="source-item">
-                    <div class="source-item-content">
-                        <div class="source-item-title">{{ citation.title }}</div>
-                        {% if citation.url %}
-                        <a href="{{ citation.url }}" target="_blank" class="source-item-url">{{ citation.url }}</a>
-                        {% endif %}
-                    </div>
-                    <span class="credibility-indicator credibility-{{ citation.credibility|default('medium') }}">{{ citation.credibility|default('medium')|upper }}</span>
-                </div>
-                {% endfor %}
-            </div>
-            {% if all_citations|length > 10 %}
-            <p style="margin-top: 15px; color: var(--text-light); font-size: 0.9rem;">
-                + {{ all_citations|length - 10 }} additional sources reviewed
-            </p>
-            {% endif %}
-        </div>
-        {% endif %}
+        
     </section>
 
     <!-- Top 3 Business Priorities -->
     <section>
         <h2>Top 3 Business Priorities</h2>
-        {% for priority in priorities %}
+        
         <div class="priority-card">
             <div class="priority-header">
-                <span class="priority-rank">{{ priority.rank }}</span>
-                <span class="priority-title">{{ priority.problem_name }}</span>
+                <span class="priority-rank">1</span>
+                <span class="priority-title">Tenant Communication Response Time Crisis</span>
             </div>
-            <p class="priority-description">{{ priority.problem_description }}</p>
+            <p class="priority-description">Property managers spend 60% of time on routine inquiries, causing slow response times that lose deals. With 45 properties across 3 states, this represents massive inefficiency and revenue loss. At readiness score 30, you need immediate wins with minimal technical complexity.</p>
 
             <div class="solution-box">
                 <div class="solution-header">
-                    <span class="solution-name">{{ priority.solution.name }}</span>
-                    <span class="solution-type">{{ priority.solution.approach_type }}</span>
+                    <span class="solution-name">Intercom Inbox + Basic AI Resolution Bot</span>
+                    <span class="solution-type">Automation</span>
                 </div>
                 <div class="solution-detail">
-                    <strong>Approach:</strong> {{ priority.solution.description }}
+                    <strong>Approach:</strong> Centralized tenant communication hub with AI-powered instant responses for common inquiries (lease terms, maintenance requests, payment info). Routes complex issues to appropriate property managers with full context.
                 </div>
                 <div class="solution-detail">
-                    <strong>Why This Fits:</strong> {{ priority.solution.why_this_fits }}
+                    <strong>Why This Fits:</strong> Given your readiness score of 30 and zero detected technology stack, this plug-and-play solution requires no technical expertise. Intercom's proven in property management with 2-week setup time.
                 </div>
                 <div class="solution-tools">
                     <strong>Tools:</strong>
-                    {% for tool in priority.solution.tools %}
-                    <span class="tool-tag">{{ tool }}</span>
-                    {% endfor %}
+                    
                 </div>
                 <div style="margin-top: 15px;">
-                    <span class="impact-badge">{{ priority.solution.expected_impact }}</span>
-                    <span class="complexity-badge complexity-{{ priority.solution.complexity|lower }}">
-                        {{ priority.solution.complexity }} Complexity
+                    <span class="impact-badge">50% reduction in response time within 30 days, 30% time savings for property managers</span>
+                    <span class="complexity-badge complexity-low">
+                        Low Complexity
                     </span>
                 </div>
             </div>
         </div>
-        {% endfor %}
+        
+        <div class="priority-card">
+            <div class="priority-header">
+                <span class="priority-rank">2</span>
+                <span class="priority-title">Lease Document Chaos and Inefficiency</span>
+            </div>
+            <p class="priority-description">Manual lease paperwork processing across 45 properties creates bottlenecks, errors, and missed renewals. Property managers waste hours on document hunting and data entry instead of relationship building and deal closing.</p>
+
+            <div class="solution-box">
+                <div class="solution-header">
+                    <span class="solution-name">Zapier + DocuSign + Google Workspace Automation</span>
+                    <span class="solution-type">Automation</span>
+                </div>
+                <div class="solution-detail">
+                    <strong>Approach:</strong> Automated lease workflow system that triggers document creation, routing, and follow-ups based on simple triggers (lease expiration dates, tenant requests). No coding required - uses visual workflow builder.
+                </div>
+                <div class="solution-detail">
+                    <strong>Why This Fits:</strong> At readiness score 30, this uses familiar tools (likely already using email/docs) with simple trigger-based automation. Zapier's drag-and-drop interface requires zero technical skills but delivers immediate productivity gains.
+                </div>
+                <div class="solution-tools">
+                    <strong>Tools:</strong>
+                    
+                </div>
+                <div style="margin-top: 15px;">
+                    <span class="impact-badge">40% faster lease processing, 90% reduction in missed renewals within 60 days</span>
+                    <span class="complexity-badge complexity-low">
+                        Low Complexity
+                    </span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="priority-card">
+            <div class="priority-header">
+                <span class="priority-rank">3</span>
+                <span class="priority-title">Property Data Scattered Across Systems</span>
+            </div>
+            <p class="priority-description">Property information, tenant data, and communication history exists in emails, spreadsheets, and individual managers' heads. This creates knowledge silos, inefficient handoffs, and missed opportunities for proactive management.</p>
+
+            <div class="solution-box">
+                <div class="solution-header">
+                    <span class="solution-name">HubSpot CRM (Free) + Notion AI Workspace</span>
+                    <span class="solution-type">Integration</span>
+                </div>
+                <div class="solution-detail">
+                    <strong>Approach:</strong> Centralized property and tenant database with AI-powered search and organization. Notion AI helps organize property information and generate reports, while HubSpot tracks all tenant interactions and lease statuses in one place.
+                </div>
+                <div class="solution-detail">
+                    <strong>Why This Fits:</strong> Both platforms are designed for non-technical users. HubSpot's free tier provides robust CRM functionality, while Notion AI ($10/user) adds intelligent organization without complexity. Perfect for your current readiness level.
+                </div>
+                <div class="solution-tools">
+                    <strong>Tools:</strong>
+                    
+                </div>
+                <div style="margin-top: 15px;">
+                    <span class="impact-badge">25% improvement in tenant retention through proactive management, 60% faster information retrieval</span>
+                    <span class="complexity-badge complexity-low">
+                        Low Complexity
+                    </span>
+                </div>
+            </div>
+        </div>
+        
     </section>
 
     <!-- What to Avoid -->
@@ -1100,42 +1004,92 @@
         <p style="margin-bottom: 20px; color: var(--text-light);">
             These solutions may seem attractive but are not right for your current readiness level.
         </p>
-        {% for anti in avoid %}
+        
         <div class="avoid-card">
             <div class="avoid-header">
                 <span class="avoid-icon">!</span>
-                <span class="avoid-name">{{ anti.name }}</span>
+                <span class="avoid-name">Custom AI Chatbot Development</span>
             </div>
             <div class="avoid-tempting">
-                <strong>Why It's Tempting:</strong> {{ anti.why_tempting }}
+                <strong>Why It's Tempting:</strong> Seems like it could handle all tenant communications perfectly and be branded to your company
             </div>
             <div class="avoid-wrong">
-                <strong>Why It's Wrong for You:</strong> {{ anti.why_wrong_for_them }}
+                <strong>Why It's Wrong for You:</strong> At readiness score 30 with zero technology infrastructure detected, custom development would be catastrophic. Requires 6+ months, $50K+ budget, ongoing technical maintenance, and high failure risk for beginners.
             </div>
         </div>
-        {% endfor %}
+        
+        <div class="avoid-card">
+            <div class="avoid-header">
+                <span class="avoid-icon">!</span>
+                <span class="avoid-name">Property Management Platform Overhaul (Yardi/RealPage AI)</span>
+            </div>
+            <div class="avoid-tempting">
+                <strong>Why It's Tempting:</strong> Comprehensive solution that promises to solve everything with integrated AI features
+            </div>
+            <div class="avoid-wrong">
+                <strong>Why It's Wrong for You:</strong> These enterprise platforms require 12-18 month implementations, extensive training, and significant change management. At your current readiness level, you'd get overwhelmed before seeing benefits.
+            </div>
+        </div>
+        
+        <div class="avoid-card">
+            <div class="avoid-header">
+                <span class="avoid-icon">!</span>
+                <span class="avoid-name">Multi-Agent AI System for Property Management</span>
+            </div>
+            <div class="avoid-tempting">
+                <strong>Why It's Tempting:</strong> Could theoretically automate everything from tenant screening to maintenance scheduling with AI agents
+            </div>
+            <div class="avoid-wrong">
+                <strong>Why It's Wrong for You:</strong> This is bleeding-edge technology requiring high technical expertise, extensive data preparation, and ongoing AI model management. You need basic automation first, not advanced AI agents.
+            </div>
+        </div>
+        
     </section>
 
     <!-- 90-Day Implementation Roadmap -->
     <section>
         <h2>90-Day Implementation Roadmap</h2>
         <div class="roadmap-timeline">
-            {% for phase in roadmap %}
+            
             <div class="roadmap-phase">
                 <div class="phase-header">
-                    <span class="phase-month">Month {{ phase.month }}</span>
-                    <span class="phase-focus">{{ phase.focus }}</span>
+                    <span class="phase-month">Month 1</span>
+                    <span class="phase-focus">Quick Win - Instant Tenant Communication Improvement</span>
                 </div>
                 <ul class="phase-actions">
-                    {% for action in phase.actions %}
-                    <li>{{ action }}</li>
-                    {% endfor %}
+                    
                 </ul>
                 <div class="decision-gate">
-                    <strong>Decision Gate:</strong> {{ phase.decision_gate }}
+                    <strong>Decision Gate:</strong> Average response time under 2 hours, 80% user adoption by property managers
                 </div>
             </div>
-            {% endfor %}
+            
+            <div class="roadmap-phase">
+                <div class="phase-header">
+                    <span class="phase-month">Month 2</span>
+                    <span class="phase-focus">Foundation - Lease Document Automation</span>
+                </div>
+                <ul class="phase-actions">
+                    
+                </ul>
+                <div class="decision-gate">
+                    <strong>Decision Gate:</strong> 40% reduction in lease processing time, zero missed renewal notifications
+                </div>
+            </div>
+            
+            <div class="roadmap-phase">
+                <div class="phase-header">
+                    <span class="phase-month">Month 3</span>
+                    <span class="phase-focus">Scale - Centralized Property Intelligence</span>
+                </div>
+                <ul class="phase-actions">
+                    
+                </ul>
+                <div class="decision-gate">
+                    <strong>Decision Gate:</strong> 95% of tenant interactions tracked in CRM, 60% faster information retrieval measured
+                </div>
+            </div>
+            
         </div>
     </section>
 
@@ -1145,8 +1099,8 @@
         <div class="executive-summary">
             <p>
                 <strong>Ready to start your AI journey?</strong> Based on your AI Readiness Score of
-                {{ score.overall_score|int }}/100, we recommend beginning with Priority #1:
-                {{ priorities[0].problem_name if priorities else 'your top business challenge' }}.
+                29/100, we recommend beginning with Priority #1:
+                Tenant Communication Response Time Crisis.
             </p>
             <p>
                 The 90-day roadmap above provides a clear path forward. Start with Month 1's quick win
@@ -1162,8 +1116,8 @@
     <!-- Footer -->
     <footer class="report-footer">
         <p>AI Readiness Compass Report</p>
-        <p>&copy; {{ year }} - All Rights Reserved</p>
-        <div class="report-id">Report ID: {{ run_id }}</div>
+        <p>&copy; 2025 - All Rights Reserved</p>
+        <div class="report-id">Report ID: compass-1a0d32ccf08a</div>
     </footer>
 </body>
 </html>

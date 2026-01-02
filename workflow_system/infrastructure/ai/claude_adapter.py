@@ -125,7 +125,27 @@ class ClaudeAdapter:
             try:
                 response = await self._client.messages.create(**kwargs)
 
-                content = response.content[0].text
+                # Safely extract content - handle empty responses
+                if not response.content:
+                    logger.warning(
+                        "claude_empty_response",
+                        model=use_model,
+                        stop_reason=response.stop_reason,
+                    )
+                    content = ""
+                else:
+                    # Find first text block (response may have multiple content types)
+                    content = ""
+                    for block in response.content:
+                        if hasattr(block, "text"):
+                            content = block.text
+                            break
+                    if not content:
+                        logger.warning(
+                            "claude_no_text_content",
+                            model=use_model,
+                            content_types=[type(b).__name__ for b in response.content],
+                        )
 
                 metadata = {
                     "input_tokens": response.usage.input_tokens,
@@ -246,15 +266,35 @@ class ClaudeAdapter:
         """
         Parse JSON from response, handling markdown code blocks.
 
+        Returns empty dict on failure for graceful degradation.
+
         Args:
             response: Raw response text
 
         Returns:
-            Parsed JSON dictionary
+            Parsed JSON dictionary, or empty dict if parsing fails
         """
+        # Handle None or empty response
+        if not response or not isinstance(response, str):
+            logger.warning("json_parse_empty_input")
+            return {}
+
+        response = response.strip()
+        if not response:
+            logger.warning("json_parse_empty_after_strip")
+            return {}
+
+        # Limit response size to prevent regex performance issues
+        if len(response) > 100_000:
+            logger.warning(
+                "json_parse_response_truncated",
+                original_length=len(response),
+            )
+            response = response[:100_000]
+
         # Try direct parse first
         try:
-            return json.loads(response.strip())
+            return json.loads(response)
         except json.JSONDecodeError:
             pass
 
@@ -274,11 +314,13 @@ class ClaudeAdapter:
             except json.JSONDecodeError:
                 pass
 
+        # Return empty dict instead of raising - graceful degradation
         logger.error(
             "json_parse_failed",
-            response_preview=response[:200],
+            response_preview=response[:200] if response else "empty",
+            response_length=len(response) if response else 0,
         )
-        raise ValueError(f"Could not parse JSON from response: {response[:100]}...")
+        return {}
 
     async def generate_parallel(
         self,
@@ -376,3 +418,222 @@ class ClaudeAdapter:
                 valid_results.append(result)
 
         return valid_results
+
+    async def generate_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: dict[str, str] | None = None,
+        max_tokens: int = 4096,
+        model: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Generate a response with tool use capability.
+
+        This method enables Claude to use tools like web_search, returning
+        structured responses that may include tool calls. Used for RAG patterns.
+
+        Args:
+            messages: List of message dicts with role and content
+            system_prompt: Optional system instructions
+            tools: List of tool definitions (each with name, description, input_schema)
+            tool_choice: Tool selection strategy ({"type": "auto|any|tool", "name": "..."})
+            max_tokens: Maximum response length
+            model: Model to use (defaults to instance default)
+
+        Returns:
+            Dict containing:
+                - content: List of content blocks (text, tool_use)
+                - stop_reason: Why generation stopped (end_turn, tool_use)
+                - usage: Token usage info
+                - model: Model used
+        """
+        use_model = model or self._default_model
+
+        kwargs: dict[str, Any] = {
+            "model": use_model,
+            "max_tokens": max_tokens,
+            "messages": messages,
+        }
+
+        if system_prompt:
+            kwargs["system"] = system_prompt
+
+        if tools:
+            kwargs["tools"] = tools
+
+        if tool_choice:
+            kwargs["tool_choice"] = tool_choice
+
+        logger.info(
+            "claude_tool_request",
+            model=use_model,
+            max_tokens=max_tokens,
+            tool_count=len(tools) if tools else 0,
+            message_count=len(messages),
+        )
+
+        # Retry loop with exponential backoff
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self._client.messages.create(**kwargs)
+
+                # Parse response content blocks
+                content_blocks = []
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        content_blocks.append({
+                            "type": "text",
+                            "text": block.text,
+                        })
+                    elif hasattr(block, "type") and block.type == "tool_use":
+                        content_blocks.append({
+                            "type": "tool_use",
+                            "id": block.id,
+                            "name": block.name,
+                            "input": block.input,
+                        })
+
+                result = {
+                    "content": content_blocks,
+                    "stop_reason": response.stop_reason,
+                    "usage": {
+                        "input_tokens": response.usage.input_tokens,
+                        "output_tokens": response.usage.output_tokens,
+                    },
+                    "model": response.model,
+                }
+
+                logger.info(
+                    "claude_tool_response",
+                    stop_reason=response.stop_reason,
+                    content_block_count=len(content_blocks),
+                    usage_input=response.usage.input_tokens,
+                    usage_output=response.usage.output_tokens,
+                )
+
+                return result
+
+            except anthropic.RateLimitError as e:
+                last_error = e
+                delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY)
+                logger.warning(
+                    "claude_tool_rate_limited",
+                    attempt=attempt + 1,
+                    max_retries=MAX_RETRIES,
+                    delay_seconds=delay,
+                )
+                await asyncio.sleep(delay)
+
+            except anthropic.APIError as e:
+                logger.error("claude_tool_api_error", error=str(e))
+                raise
+
+        logger.error(
+            "claude_tool_rate_limit_exhausted",
+            max_retries=MAX_RETRIES,
+            error=str(last_error),
+        )
+        raise last_error
+
+    async def run_tool_loop(
+        self,
+        initial_messages: list[dict[str, Any]],
+        system_prompt: str,
+        tools: list[dict[str, Any]],
+        tool_executor: Any,  # Callable that takes (tool_name, tool_input) -> result
+        max_iterations: int = 10,
+        model: str | None = None,
+    ) -> tuple[str, list[dict[str, Any]]]:
+        """
+        Run a multi-turn tool use loop until completion.
+
+        This method handles the iterative pattern where Claude may call tools
+        multiple times before producing a final text response.
+
+        Args:
+            initial_messages: Starting messages
+            system_prompt: System instructions
+            tools: Available tools
+            tool_executor: Async function to execute tools: (name, input) -> result
+            max_iterations: Maximum tool call rounds
+            model: Model to use
+
+        Returns:
+            Tuple of (final_text_response, full_message_history)
+        """
+        messages = list(initial_messages)
+
+        for iteration in range(max_iterations):
+            response = await self.generate_with_tools(
+                messages=messages,
+                system_prompt=system_prompt,
+                tools=tools,
+                model=model,
+            )
+
+            # Add assistant response to messages
+            messages.append({
+                "role": "assistant",
+                "content": response["content"],
+            })
+
+            # Check if we're done (no tool use)
+            if response["stop_reason"] == "end_turn":
+                # Extract final text
+                final_text = ""
+                for block in response["content"]:
+                    if block["type"] == "text":
+                        final_text += block["text"]
+                return final_text, messages
+
+            # Process tool calls
+            tool_results = []
+            for block in response["content"]:
+                if block["type"] == "tool_use":
+                    tool_name = block["name"]
+                    tool_input = block["input"]
+                    tool_id = block["id"]
+
+                    logger.info(
+                        "executing_tool",
+                        tool_name=tool_name,
+                        iteration=iteration + 1,
+                    )
+
+                    # Execute the tool
+                    try:
+                        result = await tool_executor(tool_name, tool_input)
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": str(result),
+                        })
+                    except Exception as e:
+                        logger.error(
+                            "tool_execution_failed",
+                            tool_name=tool_name,
+                            error=str(e),
+                        )
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": f"Error: {str(e)}",
+                            "is_error": True,
+                        })
+
+            # Add tool results to messages
+            if tool_results:
+                messages.append({
+                    "role": "user",
+                    "content": tool_results,
+                })
+
+        # Max iterations reached
+        logger.warning(
+            "tool_loop_max_iterations",
+            max_iterations=max_iterations,
+        )
+        return "", messages

@@ -1,0 +1,287 @@
+[
+  {
+    "scenario": "Scenario 1: Mid-Market CRE Firm",
+    "company": "Pinnacle Commercial Properties",
+    "industry": "Commercial Real Estate",
+    "success": true,
+    "duration_seconds": 63.0,
+    "ai_readiness_score": 43.6,
+    "self_assessment_score": 58.0,
+    "research_score": 37.5,
+    "priorities_count": 3,
+    "avoid_count": 3,
+    "roadmap_phases": 3,
+    "html_length": 37061,
+    "qa_passed": true,
+    "qa_score": 10,
+    "report_file": "test_reports\\20251231_155216\\Pinnacle_Commercial_Properties_report.html",
+    "priorities_detail": [
+      {
+        "rank": 1,
+        "problem": "Tenant Communication Bottleneck",
+        "solution": "Intercom Fin AI Resolution Bot",
+        "vendor": "Intercom",
+        "expected_impact": "60% reduction in routine inquiries to property managers within 30 days, freeing up 720 hours monthly for deal-focused activities",
+        "time_to_value": "2 weeks"
+      },
+      {
+        "rank": 2,
+        "problem": "Lease Document Processing Inefficiency",
+        "solution": "Zapier + PandaDoc AI Workflows",
+        "vendor": "Zapier & PandaDoc",
+        "expected_impact": "50% faster lease processing (20+ day reduction), 90% fewer document errors, enabling 2-3 additional deals monthly",
+        "time_to_value": "3 weeks"
+      },
+      {
+        "rank": 3,
+        "problem": "Lead Response Time and Qualification",
+        "solution": "HubSpot Free CRM + Chatbot",
+        "vendor": "HubSpot",
+        "expected_impact": "300% faster lead response (under 5 minutes), 40% improvement in lead conversion rates within 60 days",
+        "time_to_value": "1 week"
+      }
+    ],
+    "avoid_detail": [
+      {
+        "name": "Custom AI Property Valuation Models",
+        "cost_of_mistake": "$15,000-50,000 in failed implementation costs plus 6-12 months of delayed ROI on simpler solutions"
+      },
+      {
+        "name": "Enterprise Property Management AI Platforms",
+        "cost_of_mistake": "$25,000-100,000 annually plus 9+ months of productivity loss during complex migration"
+      },
+      {
+        "name": "AI-Powered Predictive Analytics Dashboards",
+        "cost_of_mistake": "$10,000-30,000 in dashboard development with minimal usable insights due to data quality issues"
+      }
+    ]
+  },
+  {
+    "scenario": "Scenario 2: Regional Healthcare Network",
+    "company": "MidWest Health Partners",
+    "industry": "Healthcare",
+    "success": true,
+    "duration_seconds": 56.7,
+    "ai_readiness_score": 32.6,
+    "self_assessment_score": 68.0,
+    "research_score": 17.5,
+    "priorities_count": 3,
+    "avoid_count": 3,
+    "roadmap_phases": 3,
+    "html_length": 37288,
+    "qa_passed": true,
+    "qa_score": 10,
+    "report_file": "test_reports\\20251231_155216\\MidWest_Health_Partners_report.html",
+    "priorities_detail": [
+      {
+        "rank": 1,
+        "problem": "Manual Patient Intake Data Entry",
+        "solution": "Typeform + Zapier Integration",
+        "vendor": "Typeform & Zapier",
+        "expected_impact": "60% reduction in data entry time, 40% fewer intake errors in 30 days",
+        "time_to_value": "2-4 weeks"
+      },
+      {
+        "rank": 2,
+        "problem": "18% No-Show Rate Prevention",
+        "solution": "SimplePractice Appointment Reminders + Acuity Scheduling",
+        "vendor": "SimplePractice",
+        "expected_impact": "Reduce no-shows to 10-12% (saving $80,000+ annually) in 45 days",
+        "time_to_value": "3-5 weeks"
+      },
+      {
+        "rank": 3,
+        "problem": "Phone-Based Scheduling Inefficiency",
+        "solution": "Calendly Healthcare + Wait List Plus",
+        "vendor": "Calendly",
+        "expected_impact": "65% reduction in scheduling calls, 20% increase in appointment bookings in 60 days",
+        "time_to_value": "2-3 weeks"
+      }
+    ],
+    "avoid_detail": [
+      {
+        "name": "Custom AI Chatbots for Patient Triage",
+        "cost_of_mistake": "$50,000-100,000 in failed implementation costs, 6-12 months of wasted time, potential HIPAA violations"
+      },
+      {
+        "name": "Predictive Analytics for No-Show Prevention",
+        "cost_of_mistake": "$30,000-75,000 in consulting fees, 9-18 months to see results, requires data cleanup you're not ready for"
+      },
+      {
+        "name": "AI-Powered Revenue Cycle Management",
+        "cost_of_mistake": "$25,000-150,000 in licensing and implementation, 12+ months timeline, high failure risk without proper data infrastructure"
+      }
+    ]
+  },
+  {
+    "scenario": "Scenario 3: E-commerce Retailer",
+    "company": "Urban Gear Collective",
+    "industry": "E-commerce Retail",
+    "success": true,
+    "duration_seconds": 59.3,
+    "ai_readiness_score": 23.4,
+    "self_assessment_score": 78.0,
+    "research_score": 0.0,
+    "priorities_count": 3,
+    "avoid_count": 3,
+    "roadmap_phases": 3,
+    "html_length": 36365,
+    "qa_passed": true,
+    "qa_score": 10,
+    "report_file": "test_reports\\20251231_155216\\Urban_Gear_Collective_report.html",
+    "priorities_detail": [
+      {
+        "rank": 1,
+        "problem": "Overwhelmed Customer Support (200+ daily tickets)",
+        "solution": "Intercom Fin AI Bot + Resolution Bot",
+        "vendor": "Intercom",
+        "expected_impact": "60% ticket reduction (120 tickets/day automated) within 30 days, freeing up 2.4 FTE worth of support capacity",
+        "time_to_value": "2 weeks"
+      },
+      {
+        "rank": 2,
+        "problem": "High Return Rate (12% of revenue)",
+        "solution": "Shopify Flow + Return Prediction Rules",
+        "vendor": "Shopify",
+        "expected_impact": "15-25% return reduction (from 12% to 9-10%) within 90 days, saving $2,000-4,000 monthly",
+        "time_to_value": "4 weeks"
+      },
+      {
+        "rank": 3,
+        "problem": "Manual Order Status and Tracking Communication",
+        "solution": "Zapier + Shopify Order Updates + SMS/Email Automation",
+        "vendor": "Zapier",
+        "expected_impact": "40% reduction in order status tickets (80 tickets/day eliminated) within 3 weeks",
+        "time_to_value": "1 week"
+      }
+    ],
+    "avoid_detail": [
+      {
+        "name": "Custom Machine Learning Return Prediction Model",
+        "cost_of_mistake": "$15,000-50,000 in consulting fees with 6-12 month delay and likely project failure"
+      },
+      {
+        "name": "Enterprise AI Customer Service Platform (Salesforce Einstein Service Cloud)",
+        "cost_of_mistake": "$3,000-8,000/month in licensing plus $20,000+ implementation costs for features you won't use"
+      },
+      {
+        "name": "Custom RAG (Retrieval-Augmented Generation) Knowledge Base",
+        "cost_of_mistake": "$10,000-25,000 in development costs with 4-6 month timeline and high maintenance overhead"
+      }
+    ]
+  },
+  {
+    "scenario": "Scenario 4: Manufacturing Company",
+    "company": "Precision Dynamics Manufacturing",
+    "industry": "Manufacturing",
+    "success": true,
+    "duration_seconds": 59.1,
+    "ai_readiness_score": 25.8,
+    "self_assessment_score": 45.0,
+    "research_score": 17.5,
+    "priorities_count": 3,
+    "avoid_count": 3,
+    "roadmap_phases": 3,
+    "html_length": 37216,
+    "qa_passed": true,
+    "qa_score": 10,
+    "report_file": "test_reports\\20251231_155216\\Precision_Dynamics_Manufacturing_report.html",
+    "priorities_detail": [
+      {
+        "rank": 1,
+        "problem": "Manual Quality Inspection Bottlenecks",
+        "solution": "Cognex In-Sight 2000 Vision System with ViDi Deep Learning",
+        "vendor": "Cognex Corporation",
+        "expected_impact": "25-40% reduction in manual inspection time and 50% improvement in defect detection consistency within 8 weeks",
+        "time_to_value": "6-8 weeks"
+      },
+      {
+        "rank": 2,
+        "problem": "Reactive Defect Response vs Predictive Prevention",
+        "solution": "Zapier + Google Sheets + Simple Statistical Analysis",
+        "vendor": "Zapier Inc + Google",
+        "expected_impact": "Early warning system reducing scrap by 15-25% within 12 weeks through pattern recognition",
+        "time_to_value": "4-6 weeks"
+      },
+      {
+        "rank": 3,
+        "problem": "Knowledge Transfer and Training Standardization",
+        "solution": "Notion AI Workspace for Quality Procedures",
+        "vendor": "Notion Labs",
+        "expected_impact": "20% reduction in quality procedure lookup time and improved consistency across shifts within 6 weeks",
+        "time_to_value": "3-4 weeks"
+      }
+    ],
+    "avoid_detail": [
+      {
+        "name": "Custom Machine Learning Model Development",
+        "cost_of_mistake": "$50,000-200,000 wasted on consulting fees with no deliverable results"
+      },
+      {
+        "name": "Enterprise IoT Sensor Networks with Edge AI",
+        "cost_of_mistake": "$100,000-500,000 in infrastructure costs with 18+ month implementation timeline and high failure risk"
+      },
+      {
+        "name": "Advanced Computer Vision with Custom Training",
+        "cost_of_mistake": "$30,000-100,000 in development costs with 6-12 month timeline and uncertain outcomes"
+      }
+    ]
+  },
+  {
+    "scenario": "Scenario 5: Professional Services Firm",
+    "company": "Sterling Advisory Group",
+    "industry": "Professional Services / Consulting",
+    "success": true,
+    "duration_seconds": 58.0,
+    "ai_readiness_score": 29.6,
+    "self_assessment_score": 58.0,
+    "research_score": 17.5,
+    "priorities_count": 3,
+    "avoid_count": 3,
+    "roadmap_phases": 3,
+    "html_length": 36472,
+    "qa_passed": true,
+    "qa_score": 10,
+    "report_file": "test_reports\\20251231_155216\\Sterling_Advisory_Group_report.html",
+    "priorities_detail": [
+      {
+        "rank": 1,
+        "problem": "Proposal Creation Acceleration",
+        "solution": "Notion AI Team Workspace + Templates",
+        "vendor": "Notion Labs",
+        "expected_impact": "50% reduction in proposal creation time (20 hours to 10 hours) within 60 days",
+        "time_to_value": "2-4 weeks"
+      },
+      {
+        "rank": 2,
+        "problem": "Knowledge Silos Breaking",
+        "solution": "Microsoft Copilot for Microsoft 365",
+        "vendor": "Microsoft",
+        "expected_impact": "30% faster information retrieval, 25% improvement in proposal quality through better context",
+        "time_to_value": "3-6 weeks"
+      },
+      {
+        "rank": 3,
+        "problem": "Client Response Speed",
+        "solution": "Zapier Professional + HubSpot CRM Starter",
+        "vendor": "Zapier Inc. + HubSpot",
+        "expected_impact": "60% faster initial response time, 100% proposal tracking accuracy",
+        "time_to_value": "2-3 weeks"
+      }
+    ],
+    "avoid_detail": [
+      {
+        "name": "Custom RAG (Retrieval-Augmented Generation) System",
+        "cost_of_mistake": "$50,000-100,000 in development costs, 6-12 months with no results, technical debt requiring ongoing AI engineers"
+      },
+      {
+        "name": "Enterprise AI Platforms (Salesforce Einstein, IBM Watson)",
+        "cost_of_mistake": "$10,000-25,000/month in licensing with 6+ month implementation, requiring AI specialists you don't have"
+      },
+      {
+        "name": "Fine-tuned LLM for Proposal Writing",
+        "cost_of_mistake": "$20,000-40,000 in development, months of data preparation, ongoing ML engineering costs with uncertain results"
+      }
+    ]
+  }
+]

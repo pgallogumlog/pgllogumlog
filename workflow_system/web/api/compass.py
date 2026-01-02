@@ -6,9 +6,10 @@ Handles premium compass report submissions with Stripe payment integration.
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Dict
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 import structlog
@@ -17,6 +18,10 @@ from config import get_container
 
 logger = structlog.get_logger()
 router = APIRouter()
+
+# In-memory report storage (for development/testing)
+# In production, use database or file storage
+_report_store: Dict[str, dict] = {}
 
 
 class CompassSubmitRequest(BaseModel):
@@ -149,7 +154,7 @@ async def submit_compass(request: CompassSubmitRequest):
     try:
         # Import here to avoid circular imports
         from contexts.compass.models import CompassRequest, SelfAssessment
-        from contexts.compass.engine import CompassEngine
+        from contexts.compass.two_call_engine import TwoCallCompassEngine
         import uuid
 
         # Create domain model from request
@@ -176,16 +181,27 @@ async def submit_compass(request: CompassSubmitRequest):
                 company=request.company_name,
             )
 
-            # Create engine with AI provider (no payment client)
+            # Create two-call engine with AI provider (no payment client in test mode)
             ai_provider = container.ai_provider()
-            email_client = container.email_adapter()
-            engine = CompassEngine(
+            email_client = container.email_client()
+
+            engine = TwoCallCompassEngine(
                 ai_provider=ai_provider,
                 email_client=email_client,
+                enable_web_search=True,
             )
 
             # Run the full pipeline synchronously
             result = await engine.process(compass_request)
+
+            # Store report for viewing/downloading
+            if result.report:
+                _report_store[result.report.run_id] = {
+                    "html_content": result.report.html_content,
+                    "company_name": result.report.company_name,
+                    "score": result.report.ai_readiness_score.overall_score,
+                    "created_at": result.report.run_id,
+                }
 
             return CompassSubmitResponse(
                 run_id=result.report.run_id if result.report else "test-failed",
@@ -353,4 +369,82 @@ async def get_compass_config():
         "test_mode": container.settings.compass_test_mode,
         "price_cents": container.settings.compass_price_cents,
         "stripe_publishable_key": container.settings.stripe_publishable_key if not container.settings.compass_test_mode else None,
+    }
+
+
+@router.get("/report/{run_id}", response_class=HTMLResponse)
+async def view_report(run_id: str):
+    """
+    View the generated report in the browser.
+
+    Returns the full HTML report for viewing.
+    """
+    if run_id not in _report_store:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Report not found: {run_id}. Reports are stored in memory and may have been lost on server restart.",
+        )
+
+    report = _report_store[run_id]
+
+    logger.info(
+        "compass_report_viewed",
+        run_id=run_id,
+        company_name=report["company_name"],
+    )
+
+    return HTMLResponse(content=report["html_content"])
+
+
+@router.get("/report/{run_id}/download")
+async def download_report(run_id: str):
+    """
+    Download the report as an HTML file.
+
+    Returns the report with Content-Disposition header for download.
+    """
+    if run_id not in _report_store:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Report not found: {run_id}. Reports are stored in memory and may have been lost on server restart.",
+        )
+
+    report = _report_store[run_id]
+    company_name = report["company_name"].replace(" ", "_").replace("&", "and")
+    filename = f"AI_Readiness_Compass_{company_name}.html"
+
+    logger.info(
+        "compass_report_downloaded",
+        run_id=run_id,
+        company_name=report["company_name"],
+        filename=filename,
+    )
+
+    return HTMLResponse(
+        content=report["html_content"],
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.get("/reports")
+async def list_reports():
+    """
+    List all stored reports (for development/testing).
+
+    Returns a list of available reports with their run_ids.
+    """
+    return {
+        "count": len(_report_store),
+        "reports": [
+            {
+                "run_id": run_id,
+                "company_name": data["company_name"],
+                "score": data["score"],
+                "view_url": f"/api/compass/report/{run_id}",
+                "download_url": f"/api/compass/report/{run_id}/download",
+            }
+            for run_id, data in _report_store.items()
+        ],
     }

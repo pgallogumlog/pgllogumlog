@@ -733,14 +733,22 @@
         <!-- Success State -->
         <div class="result-card success" id="successCard">
             <div class="result-icon">🎉</div>
-            <h2 class="result-title">Order Confirmed!</h2>
-            <p class="result-message">
-                Your AI Readiness Compass report is being generated. You'll receive your premium report at <strong id="successEmail"></strong> within 2-4 hours.
+            <h2 class="result-title">Report Ready!</h2>
+            <p class="result-message" id="successMessage">
+                Your AI Readiness Compass report has been generated and sent to <strong id="successEmail"></strong>.
             </p>
             <p class="result-message" style="font-size: 0.9rem;">
-                Order ID: <code id="successRunId"></code>
+                Report ID: <code id="successRunId"></code>
             </p>
-            <button class="btn-secondary" onclick="location.href='/'">Return to Home</button>
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap;">
+                <a id="viewReportBtn" href="#" class="btn-submit" style="width: auto; padding: 0.75rem 1.5rem; text-decoration: none;">
+                    View Report
+                </a>
+                <a id="downloadReportBtn" href="#" class="btn-secondary" style="text-decoration: none;">
+                    Download HTML
+                </a>
+            </div>
+            <button class="btn-secondary" style="margin-top: 1rem;" onclick="location.href='/compass'">Generate Another Report</button>
         </div>
 
         <!-- Error State -->
@@ -913,9 +921,14 @@
                 document.getElementById('successEmail').textContent = formData.email;
                 document.getElementById('successRunId').textContent = data.run_id || 'N/A';
 
+                // Set report URLs
+                const runId = data.run_id;
+                document.getElementById('viewReportBtn').href = `/api/compass/report/${runId}`;
+                document.getElementById('downloadReportBtn').href = `/api/compass/report/${runId}/download`;
+
                 // Update success message for test mode
                 if (testMode) {
-                    document.querySelector('#successCard .result-message').innerHTML =
+                    document.getElementById('successMessage').innerHTML =
                         `<strong>TEST MODE</strong>: ${data.message}`;
                 }
 

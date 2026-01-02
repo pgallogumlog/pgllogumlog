@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 from contexts.compass.models import SelfAssessment, CompassRequest
 from contexts.compass.agents.company_agent import CompanyResearchAgent, CompanyResearchResult
 from contexts.compass.agents.industry_agent import IndustryResearchAgent, IndustryResearchResult
-from contexts.compass.agents.whitepaper_agent import WhitePaperResearchAgent, WhitePaperResearchResult, CaseStudy
+from contexts.compass.agents.whitepaper_agent import WhitePaperResearchAgent, WhitePaperResearchResult, RealCaseStudy
 from contexts.compass.agents.orchestrator import ResearchOrchestrator, ResearchInsights
 
 
@@ -43,13 +43,13 @@ class TestCompanyResearchAgent:
     async def test_returns_research_result(self):
         """Agent should return CompanyResearchResult."""
         mock_response = {
-            "tech_stack_signals": ["Modern website", "API integrations"],
-            "automation_indicators": ["Uses HubSpot"],
-            "data_infrastructure_score": 7,
-            "digital_maturity_score": 6,
-            "integration_complexity": "medium",
-            "key_findings": ["Good foundation"],
-            "ai_opportunity_areas": ["Support automation"],
+            "technology_assessment": {
+                "detected_stack": ["Modern website", "API integrations"],
+                "stack_maturity": "modern",
+                "integration_level": "medium",
+            },
+            "digital_maturity": {"score": 6},
+            "data_infrastructure": {"score": 7},
             "overall_readiness_score": 65.0,
         }
         provider = MockAIProvider(mock_response)
@@ -64,8 +64,8 @@ class TestCompanyResearchAgent:
 
         assert isinstance(result, CompanyResearchResult)
         assert result.overall_readiness_score == 65.0
-        assert "Modern website" in result.tech_stack_signals
-        assert result.integration_complexity == "medium"
+        assert "Modern website" in result.detected_technologies
+        assert result.integration_level == "medium"
 
     @pytest.mark.asyncio
     async def test_handles_missing_website(self):
@@ -109,13 +109,18 @@ class TestIndustryResearchAgent:
     async def test_returns_industry_result(self):
         """Agent should return IndustryResearchResult."""
         mock_response = {
-            "industry_ai_maturity": "growing",
-            "common_use_cases": ["Chatbots", "Analytics"],
-            "competitor_adoption_level": "medium",
-            "regulatory_considerations": [],
-            "skill_availability": "limited",
-            "industry_benchmarks": {"typical_roi_range": "25-40%"},
-            "top_opportunities": ["Customer service AI"],
+            "industry_ai_landscape": {
+                "maturity_level": "growing",
+            },
+            "use_case_analysis": {
+                "emerging_use_cases": ["Chatbots", "Analytics"],
+            },
+            "competitor_intelligence": {
+                "adoption_level": "medium",
+            },
+            "regulatory_landscape": {
+                "key_regulations": [],
+            },
             "industry_readiness_score": 60.0,
         }
         provider = MockAIProvider(mock_response)
@@ -128,9 +133,9 @@ class TestIndustryResearchAgent:
         )
 
         assert isinstance(result, IndustryResearchResult)
-        assert result.industry_ai_maturity == "growing"
+        assert result.maturity_level == "growing"
         assert result.industry_readiness_score == 60.0
-        assert "Chatbots" in result.common_use_cases
+        assert "Chatbots" in result.emerging_use_cases
 
     @pytest.mark.asyncio
     async def test_handles_api_error(self):
@@ -156,20 +161,27 @@ class TestWhitePaperResearchAgent:
     async def test_returns_whitepaper_result(self):
         """Agent should return WhitePaperResearchResult."""
         mock_response = {
-            "relevant_case_studies": [
+            "case_studies": [
                 {
-                    "company_type": "Mid-size retailer",
+                    "title": "Retail AI Success",
+                    "company": "Mid-size retailer",
+                    "industry": "Retail",
                     "challenge": "Manual inventory",
                     "solution": "AI forecasting",
-                    "result": "30% reduction in stockouts",
+                    "vendor_tools": ["Tool1"],
+                    "results": {
+                        "primary_metric": "30% reduction in stockouts",
+                        "secondary_metrics": [],
+                        "timeline": "6 months"
+                    },
+                    "source_title": "Case Study Report",
+                    "source_url": "https://example.com",
+                    "credibility": "high",
                 }
             ],
-            "recommended_methodologies": ["Agile AI", "MVP approach"],
-            "common_pitfalls": ["Over-scoping"],
-            "success_factors": ["Executive buy-in"],
-            "roi_benchmarks": {"cost_reduction": "20-35%"},
-            "implementation_timeline": "4-6 months",
-            "resource_requirements": {"budget_range": "$20K-$50K"},
+            "methodology_recommendations": [
+                {"name": "Agile AI", "description": "MVP approach", "best_for": "Quick wins", "source": "Report", "source_url": "https://example.com"}
+            ],
             "confidence_score": 75.0,
         }
         provider = MockAIProvider(mock_response)
@@ -184,16 +196,38 @@ class TestWhitePaperResearchAgent:
 
         assert isinstance(result, WhitePaperResearchResult)
         assert result.confidence_score == 75.0
-        assert len(result.relevant_case_studies) == 1
-        assert result.relevant_case_studies[0].company_type == "Mid-size retailer"
+        assert len(result.case_studies) == 1
+        assert result.case_studies[0].company == "Mid-size retailer"
 
     @pytest.mark.asyncio
     async def test_parses_case_studies_correctly(self):
-        """Should parse case studies into CaseStudy objects."""
+        """Should parse case studies into RealCaseStudy objects."""
         mock_response = {
-            "relevant_case_studies": [
-                {"company_type": "Type1", "challenge": "C1", "solution": "S1", "result": "R1"},
-                {"company_type": "Type2", "challenge": "C2", "solution": "S2", "result": "R2"},
+            "case_studies": [
+                {
+                    "title": "CS1",
+                    "company": "Type1",
+                    "industry": "Tech",
+                    "challenge": "C1",
+                    "solution": "S1",
+                    "vendor_tools": [],
+                    "results": {"primary_metric": "R1", "secondary_metrics": [], "timeline": ""},
+                    "source_title": "Source1",
+                    "source_url": "https://example.com/1",
+                    "credibility": "medium",
+                },
+                {
+                    "title": "CS2",
+                    "company": "Type2",
+                    "industry": "Tech",
+                    "challenge": "C2",
+                    "solution": "S2",
+                    "vendor_tools": [],
+                    "results": {"primary_metric": "R2", "secondary_metrics": [], "timeline": ""},
+                    "source_title": "Source2",
+                    "source_url": "https://example.com/2",
+                    "credibility": "medium",
+                },
             ],
             "confidence_score": 80.0,
         }
@@ -202,8 +236,8 @@ class TestWhitePaperResearchAgent:
 
         result = await agent.research("Tech", "50-100", "Pain", "Desc")
 
-        assert len(result.relevant_case_studies) == 2
-        assert all(isinstance(cs, CaseStudy) for cs in result.relevant_case_studies)
+        assert len(result.case_studies) == 2
+        assert all(isinstance(cs, RealCaseStudy) for cs in result.case_studies)
 
 
 class TestResearchOrchestrator:
@@ -279,14 +313,14 @@ class TestResearchOrchestrator:
             "overall_readiness_score": 60.0,
             "industry_readiness_score": 55.0,
             "confidence_score": 70.0,
-            "tech_stack_signals": ["Modern"],
-            "common_use_cases": ["Chatbot"],
-            "relevant_case_studies": [],
+            "technology_assessment": {"detected_stack": ["Modern"]},
+            "use_case_analysis": {"emerging_use_cases": ["Chatbot"]},
+            "case_studies": [],
         })
         orchestrator = ResearchOrchestrator(provider)
 
         insights, _ = await orchestrator.run_research(sample_request)
-        insights_dict = orchestrator.to_insights_dict(insights)
+        insights_dict = insights.to_dict()
 
         assert "company" in insights_dict
         assert "industry" in insights_dict

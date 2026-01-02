@@ -1,13 +1,19 @@
 """
 White Paper Research Agent for AI Readiness Compass.
 
-Provides case studies, best practices, and proven methodologies
-relevant to the client's situation.
+UPGRADED: Uses RAG Orchestrator with Claude's native web search
+to find REAL case studies and research with verifiable citations.
 """
 
 import structlog
-from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable, Optional
+
+from infrastructure.research.rag_orchestrator import (
+    RAGOrchestrator,
+    CaseStudyResearch as RAGCaseStudyResearch,
+    WebSearchResult,
+)
 
 logger = structlog.get_logger()
 
@@ -25,87 +31,159 @@ class AIProvider(Protocol):
         ...
 
 
-WHITEPAPER_RESEARCH_SYSTEM = """You are a White Paper Research Agent specializing in AI implementation best practices.
+WHITEPAPER_ANALYSIS_SYSTEM = """You are a Senior Research Analyst specializing in AI implementation case studies.
 
-Your task is to synthesize relevant case studies, methodologies, and proven approaches
-that apply to the client's specific situation.
+ANALYSIS FRAMEWORK:
+You have been provided with REAL web search results. Extract and analyze:
 
-RESEARCH APPROACH:
-1. Relevant Case Studies: Find examples of similar companies succeeding with AI
-2. Implementation Methodologies: What frameworks work best?
-3. Common Pitfalls: What mistakes should they avoid?
-4. Success Factors: What separates successful AI projects from failures?
-5. ROI Evidence: What returns have similar companies achieved?
+1. Case studies with specific companies and outcomes
+2. ROI metrics and implementation timelines
+3. Success factors and failure patterns
+4. Vendor recommendations and pricing insights
 
-FOCUS ON ACTIONABLE KNOWLEDGE:
-- Specific frameworks they can follow
-- Metrics to track for success
-- Timeline expectations based on similar projects
-- Resource requirements from comparable implementations
+CRITICAL REQUIREMENTS:
+- Only cite information that appears in the search results provided
+- Include source_url for every case study and statistic
+- If information is not found, say "Not found in provided search results"
+- Name REAL companies with REAL outcomes from the sources
+- Quote specific metrics (percentages, dollar amounts, timelines)
 
 OUTPUT FORMAT (JSON):
 {
-    "relevant_case_studies": [
+    "case_studies": [
         {
-            "company_type": "description",
-            "challenge": "what they faced",
-            "solution": "what they implemented",
-            "result": "outcome achieved"
+            "title": "Actual title from source",
+            "company": "Real company name",
+            "industry": "Their industry",
+            "challenge": "What problem they faced",
+            "solution": "What AI solution they implemented",
+            "vendor_tools": ["specific tools mentioned"],
+            "results": {
+                "primary_metric": "e.g., 40% cost reduction",
+                "secondary_metrics": ["other metrics mentioned"],
+                "timeline": "implementation duration if mentioned"
+            },
+            "source_title": "Article/report title",
+            "source_url": "URL from search results",
+            "credibility": "high|medium"
         }
     ],
-    "recommended_methodologies": ["methodology1", "methodology2", ...],
-    "common_pitfalls": ["pitfall1", "pitfall2", ...],
-    "success_factors": ["factor1", "factor2", ...],
-    "roi_benchmarks": {
-        "cost_reduction": "X-Y%",
-        "time_savings": "X-Y%",
-        "revenue_impact": "description"
+    "implementation_insights": {
+        "average_timeline": "X months based on sources",
+        "common_success_factors": ["factor from research"],
+        "common_failure_reasons": ["reason from research"],
+        "budget_ranges": {
+            "small": "$X-$Y for small implementations",
+            "medium": "$X-$Y for medium",
+            "enterprise": "$X-$Y for enterprise"
+        }
     },
-    "implementation_timeline": "X-Y months",
-    "resource_requirements": {
-        "budget_range": "$X-$Y",
-        "team_size": "X-Y people",
-        "skills_needed": ["skill1", "skill2"]
+    "methodology_recommendations": [
+        {
+            "name": "Methodology name",
+            "description": "What it involves",
+            "best_for": "When to use it",
+            "source": "Where this recommendation comes from",
+            "source_url": "URL"
+        }
+    ],
+    "vendor_landscape": {
+        "leaders": ["Vendor 1 - why", "Vendor 2 - why"],
+        "challengers": ["Emerging vendors"],
+        "pricing_models": ["Common pricing approaches"]
     },
-    "confidence_score": <1-100>
+    "risk_mitigation": {
+        "top_risks": ["Risk with mitigation"],
+        "regulatory_considerations": ["If applicable"],
+        "change_management": ["Key considerations"]
+    },
+    "confidence_score": <1-100>,
+    "executive_summary": "Key takeaways with specific citations from sources"
 }
 """
 
 
 @dataclass
-class CaseStudy:
-    """A relevant case study from research."""
-
-    company_type: str
+class RealCaseStudy:
+    """A documented, citable case study."""
+    title: str
+    company: str
+    industry: str
     challenge: str
     solution: str
-    result: str
+    vendor_tools: list[str]
+    primary_result: str
+    secondary_results: list[str]
+    timeline: str
+    source_title: str
+    source_url: str
+    credibility: str  # high, medium
+
+
+@dataclass
+class ImplementationInsight:
+    """Insights from research about implementation."""
+    average_timeline: str
+    success_factors: list[str]
+    failure_reasons: list[str]
+    budget_small: str
+    budget_medium: str
+    budget_enterprise: str
+
+
+@dataclass
+class VendorInfo:
+    """Information about AI solution vendors."""
+    leaders: list[str]
+    challengers: list[str]
+    pricing_models: list[str]
 
 
 @dataclass
 class WhitePaperResearchResult:
-    """Result from white paper research analysis."""
+    """Result from white paper research with REAL citations."""
 
-    relevant_case_studies: list[CaseStudy]
-    recommended_methodologies: list[str]
-    common_pitfalls: list[str]
-    success_factors: list[str]
-    roi_benchmarks: dict[str, str]
-    implementation_timeline: str
-    resource_requirements: dict[str, any]
-    confidence_score: float  # 0-100
+    # Case Studies - the crown jewel
+    case_studies: list[RealCaseStudy] = field(default_factory=list)
+
+    # Implementation Insights
+    implementation: Optional[ImplementationInsight] = None
+
+    # Methodology Recommendations
+    methodologies: list[dict] = field(default_factory=list)
+
+    # Vendor Landscape
+    vendors: Optional[VendorInfo] = None
+
+    # Risk Mitigation
+    top_risks: list[str] = field(default_factory=list)
+    regulatory_considerations: list[str] = field(default_factory=list)
+    change_management: list[str] = field(default_factory=list)
+
+    # Overall
+    confidence_score: float = 50.0
+    executive_summary: str = ""
+
+    # Citations for report
+    all_citations: list[dict] = field(default_factory=list)
 
 
 class WhitePaperResearchAgent:
     """
-    Provides case studies and best practices research.
+    Searches for REAL published case studies using RAG Orchestrator
+    with Claude's native web search for verifiable citations.
 
     Contributes to the 70% research portion of AI Readiness Score
-    and enriches report with evidence-based recommendations.
+    and provides evidence-based recommendations.
     """
 
-    def __init__(self, ai_provider: AIProvider):
+    def __init__(
+        self,
+        ai_provider: AIProvider,
+        rag_orchestrator: Optional[RAGOrchestrator] = None,
+    ):
         self._ai = ai_provider
+        self._rag = rag_orchestrator
 
     async def research(
         self,
@@ -115,7 +193,7 @@ class WhitePaperResearchAgent:
         description: str,
     ) -> WhitePaperResearchResult:
         """
-        Research case studies and best practices.
+        Search for REAL case studies and research with citations.
 
         Args:
             industry: Industry sector
@@ -124,66 +202,62 @@ class WhitePaperResearchAgent:
             description: Detailed description of situation
 
         Returns:
-            WhitePaperResearchResult with case studies and methodologies
+            WhitePaperResearchResult with REAL, CITABLE case studies
         """
         logger.info(
-            "whitepaper_research_started",
+            "whitepaper_research_started_rag",
             industry=industry,
             pain_point=pain_point,
         )
 
-        prompt = f"""Research case studies and best practices for this AI implementation scenario:
+        # Gather REAL data via RAG Orchestrator
+        rag_research = None
+        all_citations = []
 
-INDUSTRY: {industry}
-COMPANY SIZE: {company_size}
-PRIMARY CHALLENGE: {pain_point}
-DETAILED SITUATION: {description}
+        if self._rag:
+            try:
+                rag_research = await self._rag.research_case_studies(
+                    industry=industry,
+                    pain_point=pain_point,
+                    company_size=company_size,
+                )
+                all_citations = rag_research.all_citations
+                logger.info(
+                    "whitepaper_rag_research_complete",
+                    industry=industry,
+                    citation_count=len(all_citations),
+                )
+            except Exception as e:
+                logger.error(
+                    "whitepaper_rag_research_failed",
+                    industry=industry,
+                    error=str(e),
+                )
 
-Find relevant examples and proven methodologies that would help this company succeed.
-Focus on:
-1. Similar companies that solved similar problems
-2. Proven implementation approaches
-3. Common mistakes to avoid
-4. Expected ROI and timelines
-
-Provide your research findings in the specified JSON format."""
+        # Build analysis prompt with REAL search results
+        prompt = self._build_analysis_prompt(
+            industry=industry,
+            company_size=company_size,
+            pain_point=pain_point,
+            description=description,
+            rag_research=rag_research,
+        )
 
         try:
             result = await self._ai.generate_json(
                 prompt=prompt,
-                system_prompt=WHITEPAPER_RESEARCH_SYSTEM,
-                max_tokens=3000,
+                system_prompt=WHITEPAPER_ANALYSIS_SYSTEM,
+                max_tokens=5000,
             )
 
-            # Parse case studies
-            case_studies = []
-            for cs in result.get("relevant_case_studies", []):
-                if isinstance(cs, dict):
-                    case_studies.append(
-                        CaseStudy(
-                            company_type=cs.get("company_type", "Similar company"),
-                            challenge=cs.get("challenge", "Similar challenge"),
-                            solution=cs.get("solution", "AI implementation"),
-                            result=cs.get("result", "Positive outcome"),
-                        )
-                    )
-
-            research_result = WhitePaperResearchResult(
-                relevant_case_studies=case_studies,
-                recommended_methodologies=result.get("recommended_methodologies", []),
-                common_pitfalls=result.get("common_pitfalls", []),
-                success_factors=result.get("success_factors", []),
-                roi_benchmarks=result.get("roi_benchmarks", {}),
-                implementation_timeline=result.get("implementation_timeline", "3-6 months"),
-                resource_requirements=result.get("resource_requirements", {}),
-                confidence_score=result.get("confidence_score", 70.0),
-            )
+            research_result = self._parse_result(result, all_citations)
 
             logger.info(
-                "whitepaper_research_completed",
+                "whitepaper_research_completed_rag",
                 industry=industry,
-                case_study_count=len(research_result.relevant_case_studies),
+                case_study_count=len(research_result.case_studies),
                 confidence=research_result.confidence_score,
+                citation_count=len(research_result.all_citations),
             )
 
             return research_result
@@ -194,28 +268,129 @@ Provide your research findings in the specified JSON format."""
                 industry=industry,
                 error=str(e),
             )
-            return WhitePaperResearchResult(
-                relevant_case_studies=[
-                    CaseStudy(
-                        company_type="Mid-size company",
-                        challenge="Manual processes consuming resources",
-                        solution="AI-powered automation",
-                        result="30% efficiency improvement",
-                    )
-                ],
-                recommended_methodologies=["Start small, iterate fast", "Pilot program approach"],
-                common_pitfalls=["Over-engineering initial solution", "Insufficient training data"],
-                success_factors=["Executive sponsorship", "Clear success metrics"],
-                roi_benchmarks={
-                    "cost_reduction": "20-40%",
-                    "time_savings": "30-50%",
-                    "revenue_impact": "Indirect through efficiency",
-                },
-                implementation_timeline="3-6 months",
-                resource_requirements={
-                    "budget_range": "$10K-$50K",
-                    "team_size": "1-3 people",
-                    "skills_needed": ["Project management", "Domain expertise"],
-                },
-                confidence_score=50.0,
-            )
+            return self._get_fallback_result(industry, all_citations)
+
+    def _build_analysis_prompt(
+        self,
+        industry: str,
+        company_size: str,
+        pain_point: str,
+        description: str,
+        rag_research: Optional[RAGCaseStudyResearch],
+    ) -> str:
+        """Build prompt with REAL RAG search results."""
+
+        # Format RAG search results
+        search_section = "NO SEARCH RESULTS AVAILABLE"
+        if rag_research and rag_research.all_citations:
+            formatted = []
+            for i, citation in enumerate(rag_research.all_citations[:30], 1):
+                formatted.append(f"""
+SOURCE {i}:
+Title: {citation.get('title', 'Unknown')}
+URL: {citation.get('url', '')}
+Credibility: {citation.get('credibility', 'medium')}
+Snippet: {citation.get('snippet', '')[:400]}
+""")
+            search_section = f"""=== REAL WEB SEARCH RESULTS ({len(rag_research.all_citations)} sources found) ===
+{''.join(formatted)}
+=== END SEARCH RESULTS ==="""
+
+        return f"""Extract REAL case studies and insights from these search results:
+
+CLIENT CONTEXT:
+- Industry: {industry}
+- Company Size: {company_size}
+- Primary Challenge: {pain_point}
+- Detailed Situation: {description}
+
+{search_section}
+
+INSTRUCTIONS:
+1. Extract ONLY case studies that appear in these search results
+2. Include the SOURCE URL for every case study
+3. Quote specific metrics and outcomes when available
+4. Name real companies - do NOT invent company names
+5. If a source mentions a case study but lacks details, note what's missing
+6. Prioritize high-credibility sources (analyst reports, major publications)
+7. For recommendations, cite which source they come from
+
+CRITICAL: Only include information that exists in the search results above.
+If you cannot find relevant case studies, say "No relevant case studies found in search results"
+rather than making them up.
+
+Provide your analysis in the specified JSON format."""
+
+    def _parse_result(
+        self,
+        result: dict,
+        all_citations: list[dict],
+    ) -> WhitePaperResearchResult:
+        """Parse AI analysis into structured result."""
+
+        # Parse case studies
+        case_studies = []
+        for cs in result.get("case_studies", []):
+            if isinstance(cs, dict) and cs.get("company"):
+                results_data = cs.get("results", {})
+                case_studies.append(RealCaseStudy(
+                    title=cs.get("title", ""),
+                    company=cs.get("company", ""),
+                    industry=cs.get("industry", ""),
+                    challenge=cs.get("challenge", ""),
+                    solution=cs.get("solution", ""),
+                    vendor_tools=cs.get("vendor_tools", []),
+                    primary_result=results_data.get("primary_metric", ""),
+                    secondary_results=results_data.get("secondary_metrics", []),
+                    timeline=results_data.get("timeline", ""),
+                    source_title=cs.get("source_title", ""),
+                    source_url=cs.get("source_url", ""),
+                    credibility=cs.get("credibility", "medium"),
+                ))
+
+        # Parse implementation insights
+        impl_data = result.get("implementation_insights", {})
+        implementation = ImplementationInsight(
+            average_timeline=impl_data.get("average_timeline", ""),
+            success_factors=impl_data.get("common_success_factors", []),
+            failure_reasons=impl_data.get("common_failure_reasons", []),
+            budget_small=impl_data.get("budget_ranges", {}).get("small", ""),
+            budget_medium=impl_data.get("budget_ranges", {}).get("medium", ""),
+            budget_enterprise=impl_data.get("budget_ranges", {}).get("enterprise", ""),
+        )
+
+        # Parse vendor info
+        vendor_data = result.get("vendor_landscape", {})
+        vendors = VendorInfo(
+            leaders=vendor_data.get("leaders", []),
+            challengers=vendor_data.get("challengers", []),
+            pricing_models=vendor_data.get("pricing_models", []),
+        )
+
+        # Parse risk mitigation
+        risk_data = result.get("risk_mitigation", {})
+
+        return WhitePaperResearchResult(
+            case_studies=case_studies,
+            implementation=implementation,
+            methodologies=result.get("methodology_recommendations", []),
+            vendors=vendors,
+            top_risks=risk_data.get("top_risks", []),
+            regulatory_considerations=risk_data.get("regulatory_considerations", []),
+            change_management=risk_data.get("change_management", []),
+            confidence_score=result.get("confidence_score", 50.0),
+            executive_summary=result.get("executive_summary", ""),
+            all_citations=all_citations,
+        )
+
+    def _get_fallback_result(
+        self,
+        industry: str,
+        all_citations: list[dict],
+    ) -> WhitePaperResearchResult:
+        """Return fallback result if research fails."""
+        return WhitePaperResearchResult(
+            executive_summary=f"Research for {industry} based on available sources.",
+            confidence_score=30.0,
+            all_citations=all_citations,
+        )

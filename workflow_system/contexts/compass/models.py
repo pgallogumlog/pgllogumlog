@@ -62,19 +62,33 @@ class CompassRequest:
 
 
 @dataclass
+class SolutionPricing:
+    """Pricing information for a solution."""
+    model: str = ""  # per_user, per_usage, flat_rate
+    estimated_monthly: str = ""  # e.g., "$500-$1,500/month"
+    implementation_cost: str = ""  # e.g., "$5,000 one-time"
+
+
+@dataclass
 class AISolution:
     """
-    A specific AI solution recommendation for a business priority.
+    A PREMIUM specific AI solution recommendation for a business priority.
 
+    UPGRADED: Now includes SPECIFIC VENDOR names, PRICING, and INTEGRATIONS.
     Each priority gets ONE primary solution matched to readiness level.
     """
-    name: str  # e.g., "RAG-Powered Support Bot"
-    approach_type: str  # RAG, Agentic, n8n, Adapter, Open Source
-    description: str
-    why_this_fits: str  # Tied to AI Readiness score
-    tools: list[str]  # e.g., ["Claude", "Pinecone", "Slack"]
-    expected_impact: str  # e.g., "40% ticket reduction"
-    complexity: str  # Low, Medium, High
+    name: str  # e.g., "Intercom Fin AI Bot" (SPECIFIC PRODUCT NAME)
+    vendor: str = ""  # e.g., "Intercom" (SPECIFIC VENDOR)
+    approach_type: str = ""  # RAG, Agentic, Automation, Integration, Platform
+    description: str = ""
+    why_this_fits: str = ""  # Tied to AI Readiness score + research data
+    specific_features: list[str] = field(default_factory=list)  # Features addressing their pain
+    integrations: list[str] = field(default_factory=list)  # Systems they can integrate with
+    tools: list[str] = field(default_factory=list)  # Legacy field for backwards compat
+    pricing: SolutionPricing = field(default_factory=SolutionPricing)
+    expected_impact: str = ""  # e.g., "40% ticket reduction in 60 days"
+    complexity: str = ""  # Low, Medium, High
+    time_to_value: str = ""  # e.g., "4-6 weeks"
 
 
 @dataclass
@@ -95,11 +109,14 @@ class AntiRecommendation:
     """
     A 'tempting but wrong' solution to avoid.
 
+    UPGRADED: Now includes vendor examples and cost of mistake.
     Premium differentiator: experts know what NOT to do.
     """
-    name: str  # e.g., "Full Autonomous Agent System"
-    why_tempting: str  # Why it seems attractive
-    why_wrong_for_them: str  # Why it's wrong for their readiness level
+    name: str  # e.g., "Custom LLM Fine-tuning" (SPECIFIC)
+    vendor_examples: list[str] = field(default_factory=list)  # Vendors that offer this
+    why_tempting: str = ""  # Why it seems attractive
+    why_wrong_for_them: str = ""  # Why it's wrong for their readiness level
+    cost_of_mistake: str = ""  # What they'd waste in time/money
 
 
 @dataclass
@@ -107,12 +124,16 @@ class RoadmapPhase:
     """
     A phase in the 90-day implementation roadmap.
 
+    UPGRADED: Now includes specific deliverables, tools, and budget.
     Each month has a focus, actions, and decision gate.
     """
     month: int  # 1, 2, or 3
-    focus: str  # e.g., "Quick Win", "Foundation", "Scale"
-    actions: list[str]  # Specific actions for this month
-    decision_gate: str  # Criteria to proceed to next phase
+    focus: str = ""  # e.g., "Quick Win - Deploy Support Bot"
+    actions: list[str] = field(default_factory=list)  # Legacy field
+    specific_deliverables: list[str] = field(default_factory=list)  # Specific outputs
+    tools_to_implement: list[str] = field(default_factory=list)  # Products to deploy
+    budget: str = ""  # e.g., "$2,000-$3,000"
+    decision_gate: str = ""  # Specific metric to hit before proceeding
 
 
 @dataclass
