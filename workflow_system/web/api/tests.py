@@ -307,18 +307,25 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
 
     # Check if this is a compass format file
     if parts[0].lower() == 'compass':
-        # Compass format: compass_{company}_{timestamp}.html
+        # Compass format: compass_{company}_{YYYYMMDD_HHMMSS}.html
+        # Note: timestamp strftime("%Y%m%d_%H%M%S") creates underscore, so
+        # "compass_Acme_Corp_20240102_120000.html" splits to
+        # ['compass', 'Acme', 'Corp', '20240102', '120000']
         tier = 'Compass'
 
-        # Last part is timestamp (YYYYMMDD_HHMMSS or just timestamp)
-        timestamp_str = parts[-1] if len(parts) > 1 else ''
+        # Timestamp is last TWO parts joined: YYYYMMDD_HHMMSS
+        if len(parts) >= 3:
+            timestamp_str = f"{parts[-2]}_{parts[-1]}"
+            # Company is everything between 'compass' and last two parts
+            company_parts = parts[1:-2]
+        else:
+            timestamp_str = parts[-1] if len(parts) > 1 else ''
+            company_parts = []
 
-        # Company is everything between 'compass' and timestamp
-        company_parts = parts[1:-1] if len(parts) > 2 else []
         company = ' '.join(company_parts) if company_parts else 'Unknown'
 
-        # No run_id in compass format, use timestamp as run_id
-        run_id = timestamp_str[:8] if len(timestamp_str) >= 8 else 'unknown'
+        # No run_id in compass format, use date portion as run_id
+        run_id = parts[-2] if len(parts) >= 3 else 'unknown'
 
     else:
         # Workflow format: {tier}_{company}_{timestamp}_{run_id}.html
