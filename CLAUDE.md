@@ -4,63 +4,64 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-# Workflow System Development Guide
+# AI Readiness Compass Development Guide
 
 ## Identity
-You are the orchestrating agent for a workflow automation system that generates AI-powered business workflow recommendations. You coordinate development of the complete system including backend processing, frontend user interface, payment integration, and delivery mechanisms.
+You are the orchestrating agent for the AI Readiness Compass - a premium $497 AI-powered strategic assessment product. You coordinate development of the complete system including backend processing, frontend user interface, payment integration, and email delivery.
 
 ## Current Implementation Status
 
 ### ✅ Implemented
-- Core workflow engine with consensus voting (multi-temperature)
-- QA system with deterministic and probabilistic validators
-- Test orchestration framework with 44+ tests
+- AI Readiness Compass engine (two-call architecture)
+- Research agents (Company, Industry, White Paper) running in parallel
+- Self-assessment scoring with hybrid AI research scoring
+- Priority analyzer with anti-recommendations and 90-day roadmap
+- HTML report generator with Jinja2 templates
+- Compass-specific QA validators (Call 1, Call 2, Cross-call)
+- Stripe payment integration (manual capture flow)
 - FastAPI web application with REST endpoints
 - Claude API integration with call capture
-- Google Sheets integration for QA logging
-- Gmail integration for email delivery
+- Gmail integration for report delivery
+- Compass test orchestrator with 15 test cases
 - Structured logging with structlog
 - Dependency injection container
-- Background email polling service
 
 ### 🚧 Planned/Future
-- Stripe payment processing integration
 - Playwright e2e tests
-- User submission form with payment flow
 - Production deployment configuration
+- Web research integration (Tavily/SerpAPI)
 
 ## Architecture Overview
 
 ### Key Architectural Patterns
 
 **1. Domain-Driven Design (Contexts)**
-- `contexts/workflow/` - Core business logic for workflow generation
+- `contexts/compass/` - Core Compass engine, agents, scoring, report generation
 - `contexts/qa/` - Quality assurance and validation logic
-- `contexts/testing/` - Test orchestration and execution
+- `contexts/testing/` - Compass test orchestration
 - Each context is self-contained with its own models and logic
 
 **2. Hexagonal Architecture (Ports & Adapters)**
 - `infrastructure/` contains adapters for external services:
   - `ai/` - Claude API client and QA-instrumented wrapper
+  - `payments/` - Stripe payment processing
   - `storage/` - Google Sheets persistence
   - `email/` - Gmail delivery
 - Business logic (contexts) depends on interfaces, not implementations
 - Dependency injection enables swapping implementations (e.g., MockAIProvider for tests)
 
-**3. Multi-Temperature Consensus Voting**
-- Core innovation: Run same prompt at different temperatures (0.4, 0.6, 0.8, 1.0, 1.2)
-- Voter (`contexts/workflow/voter.py`) analyzes outputs for consensus
-- Improves reliability by detecting hallucinations and inconsistencies
-- Configurable via `SC_TEMPERATURES` and `SC_MIN_CONSENSUS_VOTES` env vars
+**3. Two-Call Compass Architecture**
+- **Call 1 (Research)**: Three parallel agents gather company, industry, and white paper insights
+- **Call 2 (Synthesis)**: Priority analyzer creates recommendations, anti-recommendations, and roadmap
+- Hybrid scoring: 30% self-assessment + 70% AI research score
 
 **4. QA Capture & Validation Pipeline**
 - `CapturingAIAdapter` wraps `ClaudeAdapter` to intercept all AI calls
-- Captured data flows through validation pipeline:
-  - Deterministic validators (response time, token count, format)
-  - Probabilistic validators (semantic quality using AI)
-  - Auditor assigns final quality score (1-10)
-- Results logged to Google Sheets for analysis
-- Enable with `--qa` flag on test runners
+- Compass-specific validators:
+  - Call 1 Validator: Research relevance and depth
+  - Call 2 Validator: Synthesis quality and citations
+  - Cross-call Validator: Research utilization in synthesis
+- Results logged for analysis
 
 **5. Dependency Injection**
 - `config/dependency_injection.py` provides central service container
@@ -68,19 +69,19 @@ You are the orchestrating agent for a workflow automation system that generates 
 - Services lazy-loaded on first access
 
 ## Project Overview
-This system allows users to:
-1. Enter business information via web form
-2. Submit prompts for AI workflow analysis
-3. Pay for premium analysis tiers
-4. Receive results via email or direct download
+The AI Readiness Compass allows users to:
+1. Complete a self-assessment questionnaire (data maturity, automation experience, change readiness)
+2. Provide business information and pain points
+3. Pay $497 via Stripe (manual capture - authorize first, capture after QA)
+4. Receive a premium 8-10 page strategic report via email
 
 ## Tech Stack
 **Backend**: Python 3.11+ (pyproject.toml requirement; currently 3.9+ compatible), FastAPI, Pydantic, structlog, pytest
 **Frontend**: HTML5, CSS3, JavaScript ES6+, Jinja2 templates
-**AI**: Claude API (Anthropic), multi-temperature consensus voting
-**Storage**: Google Sheets API for logging and results
-**Payments**: Stripe API for payment processing (planned/future)
-**Email**: Gmail API for delivery
+**AI**: Claude API (Anthropic)
+**Storage**: Google Sheets API for logging
+**Payments**: Stripe API with manual capture flow
+**Email**: Gmail API for report delivery
 **Testing**: pytest (unit/integration), Playwright (e2e, planned)
 
 ## Project Structure
@@ -94,47 +95,49 @@ learnClaude/
     ├── pyproject.toml           # Project config, pytest, mypy, ruff settings
     ├── requirements.txt         # Python dependencies
     ├── main.py                  # Application entry point
-    ├── run_test.py              # CLI test runner
-    ├── run_qa_test.py           # QA-enabled test runner
     ├── authorize_sheets.py      # Google Sheets OAuth setup
     ├── config/
     │   ├── settings.py          # Environment configuration
     │   └── dependency_injection.py  # Service container
     ├── contexts/
-    │   ├── workflow/            # Core workflow engine
-    │   │   ├── engine.py        # Main orchestrator
-    │   │   ├── models.py        # Domain models
-    │   │   ├── prompts.py       # AI prompt templates
-    │   │   └── voter.py         # Consensus voting
+    │   ├── compass/             # AI Readiness Compass engine
+    │   │   ├── models.py        # Domain models (CompassRequest, CompassReport, etc.)
+    │   │   ├── scoring.py       # Self-assessment scorer
+    │   │   ├── two_call_engine.py  # Main orchestrator
+    │   │   ├── generator.py     # HTML report generator
+    │   │   ├── analyzer.py      # Priority analyzer
+    │   │   ├── agents/          # Research agents
+    │   │   │   ├── company_agent.py
+    │   │   │   ├── industry_agent.py
+    │   │   │   ├── whitepaper_agent.py
+    │   │   │   └── orchestrator.py
+    │   │   ├── templates/       # Jinja2 report templates
+    │   │   └── validators/      # Compass-specific QA validators
     │   ├── qa/                  # Quality assurance
-    │   │   ├── auditor.py       # Semantic QA
     │   │   ├── call_capture.py  # AI call instrumentation
+    │   │   ├── models.py        # QA models
     │   │   ├── scoring.py       # Validation pipeline
-    │   │   ├── sheets_logger.py # Log QA results to Sheets
-    │   │   └── validators/      # Deterministic & probabilistic
+    │   │   └── validators/      # Deterministic validators
     │   └── testing/             # Test orchestration
-    │       ├── orchestrator.py  # Test runner
-    │       ├── test_cases.py    # Test data
-    │       └── models.py        # Test domain models
+    │       ├── compass_orchestrator.py  # Compass test runner
+    │       └── compass_test_cases.py    # Test data
     ├── infrastructure/
     │   ├── ai/
     │   │   ├── claude_adapter.py      # Claude API client
     │   │   └── capturing_adapter.py   # QA instrumentation wrapper
+    │   ├── payments/
+    │   │   └── stripe_adapter.py      # Stripe integration
     │   ├── email/
     │   │   └── gmail_adapter.py       # Gmail integration
     │   └── storage/
     │       └── sheets_adapter.py      # Google Sheets client
-    ├── background/
-    │   └── email_poller.py      # Background email polling service
     ├── shared/
     │   └── utils.py             # Common utility functions
-    ├── data/
-    │   └── test_cases/          # Test case storage
     ├── web/
     │   ├── app.py               # FastAPI application
     │   ├── api/                 # REST endpoints
     │   │   ├── health.py        # Health check endpoints
-    │   │   ├── workflows.py     # Workflow execution endpoints
+    │   │   ├── compass.py       # Compass submission endpoints
     │   │   └── tests.py         # Test runner endpoints
     │   └── ui/
     │       ├── templates/       # Jinja2 HTML templates
@@ -142,7 +145,10 @@ learnClaude/
     └── tests/
         ├── conftest.py          # Pytest fixtures, MockAIProvider
         ├── unit/                # Unit tests
-        │   └── contexts/        # Context-specific unit tests
+        │   ├── contexts/
+        │   │   └── compass/     # Compass unit tests
+        │   ├── infrastructure/  # Infrastructure unit tests
+        │   └── web/             # Web layer unit tests
         └── integration/         # Integration tests
             └── test_api.py      # API integration tests
 ```
@@ -198,12 +204,12 @@ Use for iterative frontend development:
 5. Fix issues and screenshot again
 6. Repeat until visual matches expectations
 
-#### Stripe - Payment Integration (Future/Planned)
-**Note**: Stripe integration is not yet implemented. When implemented, use for:
+#### Stripe - Payment Integration
+Use for payment testing:
 ```
-"Create a Stripe checkout session for $29.99 premium tier"
+"Create a Stripe payment intent for $497"
 "List recent payments for customer email"
-"Create a payment intent for the standard tier"
+"Capture the payment intent after QA passes"
 "Verify webhook signature for payment confirmation"
 ```
 
@@ -230,9 +236,9 @@ Use for iterative frontend development:
 
 ### Test Structure
 ```python
-# tests/unit/contexts/test_feature.py
+# tests/unit/contexts/compass/test_feature.py
 import pytest
-from contexts.feature import FeatureClass
+from contexts.compass.feature import FeatureClass
 
 class TestFeatureClass:
     """Tests for FeatureClass."""
@@ -270,26 +276,20 @@ cd workflow_system
 # Run all tests
 python -m pytest tests/ -v
 
-# Run specific test file
-python -m pytest tests/unit/contexts/test_workflow_engine.py -v
+# Run Compass tests only
+python -m pytest tests/unit/contexts/compass/ -v
 
-# Run specific test
-python -m pytest tests/unit/contexts/test_workflow_engine.py::TestWorkflowEngine::test_process_inquiry -v
+# Run specific test file
+python -m pytest tests/unit/contexts/compass/test_engine.py -v
 
 # Run with coverage
 python -m pytest tests/ --cov=contexts --cov-report=html
 
 # Run tests matching pattern
-python -m pytest tests/ -k "test_payment" -v
+python -m pytest tests/ -k "test_compass" -v
 
 # Run integration tests only
 python -m pytest tests/integration/ -v
-
-# Run with QA capture (uses CLI test runner)
-python run_test.py --qa --tier standard --count 1
-
-# Run QA tests with mock AI provider (no API calls)
-python run_test.py --qa --mock --tier standard
 ```
 
 ## Production Readiness Checklist
@@ -298,7 +298,7 @@ python run_test.py --qa --mock --tier standard
 - [ ] All happy path tests pass
 - [ ] Basic error handling exists
 - [ ] Environment variables configured
-- [ ] Can process a request end-to-end
+- [ ] Can process a Compass request end-to-end
 
 ### Level 2: Reliable
 - [ ] Edge cases tested and handled
@@ -312,7 +312,7 @@ python run_test.py --qa --mock --tier standard
 - [ ] Request tracing with run_id
 - [ ] Performance metrics captured
 - [ ] Error rates trackable
-- [ ] QA scores logged to Google Sheets
+- [ ] QA scores logged
 
 ### Level 4: Resilient
 - [ ] Retry logic for external APIs (Claude, Stripe, Gmail)
@@ -376,7 +376,7 @@ Phase 4: Polish
 ```
 1. Write test for form submission endpoint
 2. Implement basic HTML form
-3. Screenshot: "Navigate to http://localhost:8000/submit and screenshot"
+3. Screenshot: "Navigate to http://localhost:8000/compass and screenshot"
 4. Evaluate: "Form renders but lacks styling and validation"
 5. Add CSS styling
 6. Screenshot again
@@ -391,76 +391,88 @@ Phase 4: Polish
 
 ## Frontend Development Guide
 
-**Note**: The payment integration described below is planned for future implementation.
-
-### User Submission Form Requirements
+### AI Readiness Compass Form Requirements
 The form must collect:
 1. **Business Information**
    - Company name
-   - Website URL
+   - Website URL (optional)
    - Industry/sector
    - Company size
 
-2. **Analysis Request**
-   - Prompt/description of needs
-   - Tier selection (Budget/Standard/Premium)
+2. **AI Readiness Self-Assessment**
+   - Data maturity (1-5)
+   - Automation experience (1-5)
+   - Change readiness (1-5)
 
-3. **Payment**
+3. **Your Challenge**
+   - Pain point description
+   - Additional context
+
+4. **Payment**
    - Stripe Elements integration
-   - Price display based on tier
+   - $497 price display
 
-4. **Delivery Options**
+5. **Delivery**
    - Email address (required)
-   - Optional: Download immediately
+   - Contact name
 
 ### Form Implementation Pattern
 ```html
-<!-- templates/submit.html -->
-<form id="workflow-form" action="/api/v1/workflows/submit" method="POST">
+<!-- templates/compass.html -->
+<form id="compass-form" action="/api/compass/submit" method="POST">
   <!-- Business Info Section -->
   <section class="form-section">
     <h2>Business Information</h2>
     <input type="text" name="company_name" required>
-    <input type="url" name="website_url" required>
-    <!-- ... -->
+    <input type="url" name="website">
+    <select name="industry" required>...</select>
+    <select name="company_size" required>...</select>
   </section>
 
-  <!-- Tier Selection -->
+  <!-- Self-Assessment Section -->
   <section class="form-section">
-    <h2>Analysis Tier</h2>
-    <div class="tier-cards">
-      <label class="tier-card">
-        <input type="radio" name="tier" value="budget">
-        <span class="tier-name">Budget</span>
-        <span class="tier-price">$9.99</span>
-      </label>
-      <!-- ... -->
+    <h2>AI Readiness Self-Assessment</h2>
+    <div class="slider-group">
+      <label>Data Maturity</label>
+      <input type="range" name="data_maturity" min="1" max="5" required>
     </div>
+    <div class="slider-group">
+      <label>Automation Experience</label>
+      <input type="range" name="automation_experience" min="1" max="5" required>
+    </div>
+    <div class="slider-group">
+      <label>Change Readiness</label>
+      <input type="range" name="change_readiness" min="1" max="5" required>
+    </div>
+  </section>
+
+  <!-- Pain Point Section -->
+  <section class="form-section">
+    <h2>Your Challenge</h2>
+    <textarea name="pain_point" required></textarea>
+    <textarea name="description"></textarea>
   </section>
 
   <!-- Stripe Payment -->
   <section class="form-section">
-    <h2>Payment</h2>
+    <h2>Payment - $497</h2>
     <div id="stripe-elements"></div>
   </section>
 
   <!-- Delivery -->
   <section class="form-section">
     <h2>Delivery</h2>
+    <input type="text" name="contact_name" required>
     <input type="email" name="email" required>
-    <label>
-      <input type="checkbox" name="download_immediately">
-      Also download results immediately
-    </label>
   </section>
 
-  <button type="submit">Submit & Pay</button>
+  <button type="submit">Get Your AI Readiness Compass</button>
 </form>
 ```
 
 ### Stripe Integration Pattern
 ```javascript
-// static/js/payment.js
+// static/js/compass-payment.js
 const stripe = Stripe('pk_test_...');
 const elements = stripe.elements();
 const card = elements.create('card');
@@ -469,15 +481,15 @@ card.mount('#stripe-elements');
 async function handleSubmit(event) {
   event.preventDefault();
 
-  // Create payment intent on backend
-  const response = await fetch('/api/v1/payments/create-intent', {
+  // Create payment intent on backend (manual capture)
+  const response = await fetch('/api/compass/create-payment-intent', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({tier: selectedTier})
+    body: JSON.stringify({email: formData.email})
   });
-  const {clientSecret} = await response.json();
+  const {clientSecret, paymentIntentId} = await response.json();
 
-  // Confirm payment with Stripe
+  // Confirm payment with Stripe (authorizes but doesn't capture)
   const {error, paymentIntent} = await stripe.confirmCardPayment(
     clientSecret,
     {payment_method: {card: card}}
@@ -485,8 +497,9 @@ async function handleSubmit(event) {
 
   if (error) {
     showError(error.message);
-  } else if (paymentIntent.status === 'succeeded') {
-    submitWorkflowRequest(paymentIntent.id);
+  } else if (paymentIntent.status === 'requires_capture') {
+    // Payment authorized - submit Compass request
+    submitCompassRequest(paymentIntentId);
   }
 }
 ```
@@ -506,8 +519,8 @@ uvicorn web.app:app --reload --host 0.0.0.0 --port 8000
 # Run all tests (from workflow_system/)
 python -m pytest tests/ -v
 
-# Run with QA capture (from workflow_system/)
-python run_test.py --qa --tier standard
+# Run Compass tests only
+python -m pytest tests/unit/contexts/compass/ -v
 
 # Format code (from project root: learnClaude/)
 cd ..
@@ -543,7 +556,6 @@ ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxxxxxxx
 GOOGLE_CREDENTIALS_FILE=config/google_credentials.json
 GMAIL_USER_EMAIL=your-email@gmail.com
 GOOGLE_SHEETS_QA_LOG_ID=your-spreadsheet-id
-GOOGLE_SHEETS_CONFIG_ID=your-config-spreadsheet-id
 
 # Application Settings
 APP_ENV=development
@@ -551,22 +563,20 @@ APP_DEBUG=true
 APP_HOST=127.0.0.1
 APP_PORT=8000
 
-# Database
-DATABASE_URL=sqlite+aiosqlite:///data/workflow_system.db
+# Stripe Payment (Required for payments)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+COMPASS_PRICE_CENTS=49700
+COMPASS_TEST_MODE=true
 
-# Workflow Settings (Self-Consistency Engine)
-SC_TEMPERATURES=0.4,0.6,0.8,1.0,1.2
-SC_MIN_CONSENSUS_VOTES=2
-SC_MODEL=claude-sonnet-4-20250514
-
-# QA Auditor Settings
+# QA Settings
 QA_MODEL=claude-sonnet-4-20250514
 QA_MIN_PASS_SCORE=7
 
-# Stripe (Future/Planned - Not yet implemented)
-# STRIPE_SECRET_KEY=sk_test_...
-# STRIPE_PUBLISHABLE_KEY=pk_test_...
-# STRIPE_WEBHOOK_SECRET=whsec_...
+# Web Research (Optional)
+TAVILY_API_KEY=your-tavily-key
+ENABLE_WEB_RESEARCH=true
 ```
 
 ## Quality Gates
@@ -593,8 +603,8 @@ QA_MIN_PASS_SCORE=7
 ### Branching Strategy
 ```
 main              # Production-ready code only
-├── feature/*     # New features (feature/add-payment-form)
-├── fix/*         # Bug fixes (fix/stripe-webhook-error)
+├── feature/*     # New features (feature/add-compass-webhook)
+├── fix/*         # Bug fixes (fix/stripe-capture-error)
 ├── refactor/*    # Code improvements (refactor/extract-validation)
 └── docs/*        # Documentation updates (docs/api-endpoints)
 ```
@@ -629,10 +639,10 @@ Format: `type(scope): description`
 
 **Examples:**
 ```
-feat(payment): add Stripe checkout integration
-fix(workflow): handle empty response from Claude API
+feat(compass): add research agent parallel execution
+fix(compass): handle empty company website gracefully
 refactor(qa): extract validation logic to separate module
-test(api): add integration tests for workflow endpoint
+test(compass): add integration tests for report generation
 docs(readme): update installation instructions
 ```
 
@@ -656,7 +666,7 @@ git status
 git log --oneline -10
 
 # Create PR
-gh pr create --title "feat: add payment form" --body "## Summary\n- Added Stripe integration\n- Created payment form UI"
+gh pr create --title "feat: add compass webhook" --body "## Summary\n- Added Stripe webhook handling\n- Implemented payment capture after QA"
 
 # View PRs
 gh pr list
