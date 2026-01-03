@@ -17,8 +17,9 @@ from __future__ import annotations
 import json
 import uuid
 import structlog
-from dataclasses import dataclass
-from typing import Optional, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Optional, Protocol, runtime_checkable, TYPE_CHECKING
 
 from contexts.compass.models import (
     CompassRequest,
@@ -40,6 +41,17 @@ from contexts.compass.prompts import (
     STRATEGIC_SYNTHESIS_TEMPERATURE,
     get_readiness_tier,
 )
+from contexts.compass.validators import (
+    Call1Validator,
+    Call2Validator,
+    CrossCallValidator,
+    CallQAResult,
+    CrossCallQAResult,
+    CompassQASummary,
+)
+
+if TYPE_CHECKING:
+    from contexts.compass.sheets_logger import CompassQASheetsLogger
 
 logger = structlog.get_logger()
 
@@ -107,6 +119,12 @@ class TwoCallResult:
     call_1_tokens: int = 0
     call_2_tokens: int = 0
 
+    # New QA validation results
+    call_1_qa: Optional[CallQAResult] = None
+    call_2_qa: Optional[CallQAResult] = None
+    cross_call_qa: Optional[CrossCallQAResult] = None
+    qa_issues: list[str] = field(default_factory=list)
+
 
 class TwoCallCompassEngine:
     """
@@ -131,16 +149,23 @@ class TwoCallCompassEngine:
         ai_provider: AIProvider,
         payment_client: Optional[PaymentClient] = None,
         email_client: Optional[EmailClient] = None,
+        sheets_logger: Optional[CompassQASheetsLogger] = None,
         enable_web_search: bool = True,
     ):
         self._ai = ai_provider
         self._payment = payment_client
         self._email = email_client
+        self._sheets_logger = sheets_logger
         self._enable_web_search = enable_web_search
 
         # Initialize sub-components
         self._scorer = SelfAssessmentScorer()
         self._generator = CompassReportGenerator(ai_provider)
+
+        # Initialize QA validators
+        self._call_1_validator = Call1Validator()
+        self._call_2_validator = Call2Validator()
+        self._cross_call_validator = CrossCallValidator()
 
     async def process(
         self,
@@ -173,7 +198,26 @@ class TwoCallCompassEngine:
 
             # Step 2: CALL 1 - Deep Research
             logger.info("two_call_step", run_id=run_id, step="call_1_research")
+            start_call_1 = datetime.now()
             research_findings = await self._call_1_deep_research(request)
+            call_1_duration = (datetime.now() - start_call_1).total_seconds() * 1000
+
+            # Step 2b: Validate Call 1 output
+            logger.info("two_call_step", run_id=run_id, step="validate_call_1")
+            call_1_qa = self._call_1_validator.validate(
+                request=request,
+                research_findings=research_findings,
+                call_id=f"{run_id}-call-1",
+            )
+            call_1_qa.run_id = run_id
+            call_1_qa.duration_ms = call_1_duration
+            logger.info(
+                "call_1_validation_complete",
+                run_id=run_id,
+                passed=call_1_qa.passed,
+                score=call_1_qa.score,
+                is_relevant=call_1_qa.is_relevant,
+            )
 
             # Calculate research score from findings quality
             research_score = self._score_research_quality(research_findings)
@@ -194,13 +238,46 @@ class TwoCallCompassEngine:
 
             # Step 4: CALL 2 - Strategic Synthesis
             logger.info("two_call_step", run_id=run_id, step="call_2_synthesis")
+            start_call_2 = datetime.now()
             synthesis_output = await self._call_2_synthesis(
                 request=request,
                 ai_readiness=ai_readiness,
                 research_findings=research_findings,
             )
+            call_2_duration = (datetime.now() - start_call_2).total_seconds() * 1000
 
-            # Step 5: Validate synthesis for hallucinations and semantic relevance
+            # Step 4b: Validate Call 2 output
+            logger.info("two_call_step", run_id=run_id, step="validate_call_2")
+            call_2_qa = self._call_2_validator.validate(
+                request=request,
+                synthesis_output=synthesis_output,
+                call_id=f"{run_id}-call-2",
+            )
+            call_2_qa.run_id = run_id
+            call_2_qa.duration_ms = call_2_duration
+            logger.info(
+                "call_2_validation_complete",
+                run_id=run_id,
+                passed=call_2_qa.passed,
+                score=call_2_qa.score,
+                is_specific=call_2_qa.is_specific,
+            )
+
+            # Step 4c: Cross-call validation (does synthesis use research?)
+            logger.info("two_call_step", run_id=run_id, step="validate_cross_call")
+            cross_call_qa = self._cross_call_validator.validate(
+                research_findings=research_findings,
+                synthesis_output=synthesis_output,
+            )
+            logger.info(
+                "cross_call_validation_complete",
+                run_id=run_id,
+                passed=cross_call_qa.passed,
+                score=cross_call_qa.score,
+                research_used_percent=f"{cross_call_qa.research_used_percent:.0f}%",
+            )
+
+            # Step 5: Validate synthesis for hallucinations (legacy check)
             logger.info("two_call_step", run_id=run_id, step="validate_synthesis")
             synthesis_valid, synthesis_issues = self._validate_synthesis_quality(
                 synthesis_output, request
@@ -232,9 +309,34 @@ class TwoCallCompassEngine:
                 run_id=run_id,
             )
 
-            # Step 8: QA validation
+            # Step 8: Aggregate QA validation
             logger.info("two_call_step", run_id=run_id, step="qa_validation")
-            qa_passed, qa_score = await self._run_qa(report)
+            # Combine all QA results
+            all_qa_issues = (
+                call_1_qa.issues +
+                call_2_qa.issues +
+                cross_call_qa.issues +
+                synthesis_issues
+            )
+
+            # QA passes if all validators pass
+            qa_passed = (
+                call_1_qa.passed and
+                call_2_qa.passed and
+                cross_call_qa.passed
+            )
+            qa_score = min(call_1_qa.score, call_2_qa.score, cross_call_qa.score)
+
+            logger.info(
+                "qa_validation_aggregate",
+                run_id=run_id,
+                qa_passed=qa_passed,
+                qa_score=qa_score,
+                call_1_passed=call_1_qa.passed,
+                call_2_passed=call_2_qa.passed,
+                cross_call_passed=cross_call_qa.passed,
+                total_issues=len(all_qa_issues),
+            )
 
             # Step 9: Payment and delivery
             payment_captured = False
@@ -284,7 +386,42 @@ class TwoCallCompassEngine:
                 qa_score=qa_score,
                 payment_captured=payment_captured,
                 email_sent=email_sent,
+                call_1_qa=call_1_qa,
+                call_2_qa=call_2_qa,
+                cross_call_qa=cross_call_qa,
+                qa_issues=all_qa_issues,
             )
+
+            # Step 10: Log QA results to Google Sheets
+            if self._sheets_logger:
+                logger.info("two_call_step", run_id=run_id, step="log_qa_to_sheets")
+                try:
+                    # Build summary for sheets
+                    qa_summary = CompassQASummary(
+                        run_id=run_id,
+                        timestamp=datetime.now(),
+                        company_name=request.company_name,
+                        industry=request.industry,
+                        pain_point=request.pain_point,
+                        ai_readiness_score=ai_readiness.overall_score,
+                        call_1_qa=call_1_qa,
+                        call_2_qa=call_2_qa,
+                        cross_call_qa=cross_call_qa,
+                        overall_qa_passed=qa_passed,
+                        total_tokens=0,  # TODO: capture from API responses
+                        duration_seconds=(datetime.now() - start_call_1).total_seconds(),
+                        email_sent=email_sent,
+                        payment_captured=payment_captured,
+                        top_issues=all_qa_issues[:3],
+                    )
+
+                    await self._sheets_logger.log_complete_run(qa_summary)
+                except Exception as e:
+                    logger.error(
+                        "two_call_sheets_logging_failed",
+                        run_id=run_id,
+                        error=str(e),
+                    )
 
             logger.info(
                 "two_call_compass_completed",

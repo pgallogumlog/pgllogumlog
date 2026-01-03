@@ -271,27 +271,3 @@ def test_container(mock_ai_provider, mock_email_client, mock_sheets_client):
     return container
 
 
-@pytest.fixture
-def sample_email_inquiry():
-    """Provide a sample email inquiry for testing."""
-    from contexts.workflow.models import EmailInquiry
-
-    return EmailInquiry(
-        message_id="test-123",
-        from_email="test@example.com",
-        from_name="Test User",
-        subject="Test Request",
-        body="Analyze Starbucks at https://www.starbucks.com and recommend the top 5 AI workflows.",
-    )
-
-
-@pytest.fixture
-def sample_test_case():
-    """Provide a sample test case for testing."""
-    from contexts.testing.models import TestCase
-
-    return TestCase(
-        company="Starbucks",
-        prompt="Analyze Starbucks at https://www.starbucks.com and recommend the top 5 AI workflows.",
-        category="Service/Retail",
-    )

@@ -12,13 +12,12 @@ from typing import TYPE_CHECKING, Optional
 
 import structlog
 
-from contexts.qa.models import CallScore, Severity, WorkflowQAResult
+from contexts.qa.models import CallScore, Severity
 from contexts.qa.validators.base import ValidationResult
 from contexts.qa.validators.deterministic import DETERMINISTIC_VALIDATORS
 
 if TYPE_CHECKING:
-    from contexts.qa.call_capture import AICallCapture, AICallStore
-    from contexts.qa.models import QAResult
+    from contexts.qa.call_capture import AICallCapture
     from config.dependency_injection import AIProvider
 
 logger = structlog.get_logger()
@@ -241,101 +240,4 @@ class CallScorer:
             check_scores=check_scores,
             deterministic_passed=deterministic_passed,
             probabilistic_passed=probabilistic_passed if has_probabilistic else None,
-        )
-
-
-class WorkflowScorer:
-    """
-    Compute aggregate score for an entire workflow run.
-
-    Aggregates individual call scores into a workflow-level score.
-    """
-
-    def __init__(self, min_pass_score: int = 7):
-        """
-        Initialize the workflow scorer.
-
-        Args:
-            min_pass_score: Minimum score to pass (default 7)
-        """
-        self._min_pass_score = min_pass_score
-        self._call_scorer = CallScorer(min_pass_score)
-
-    def score(
-        self,
-        call_store: AICallStore,
-        semantic_result: Optional[QAResult] = None,
-    ) -> WorkflowQAResult:
-        """
-        Compute aggregate score from all captured calls.
-
-        Args:
-            call_store: Store containing all captured AI calls
-            semantic_result: Optional semantic QA result from QAAuditor
-
-        Returns:
-            WorkflowQAResult with aggregate scores and details
-        """
-        calls = call_store.calls
-
-        if not calls:
-            return WorkflowQAResult(
-                run_id=call_store.run_id,
-                client_name="",
-                total_calls=0,
-                calls_passed=0,
-                calls_failed=0,
-                overall_score=10,
-                passed=True,
-                semantic_result=semantic_result,
-            )
-
-        # Score each call if not already scored
-        for call in calls:
-            if call.call_score is None:
-                call.call_score = self._call_scorer.score(call)
-
-        # Aggregate call scores
-        call_scores = [c.call_score for c in calls if c.call_score]
-
-        if not call_scores:
-            overall_score = 10
-        else:
-            # Simple average of call scores
-            total_score = sum(cs.overall_score for cs in call_scores)
-            overall_score = round(total_score / len(call_scores))
-
-        # Find worst call
-        worst_call = None
-        worst_severity = Severity.NONE
-        if call_scores:
-            worst_cs = min(call_scores, key=lambda cs: cs.overall_score)
-            worst_call = worst_cs.call_id
-            worst_severity = worst_cs.worst_severity
-
-        # Count passed/failed
-        calls_passed = sum(1 for cs in call_scores if cs.passed)
-        calls_failed = sum(1 for cs in call_scores if not cs.passed)
-
-        # Overall pass requires all calls to pass
-        # (or can be relaxed to majority pass if desired)
-        passed = calls_failed == 0 and overall_score >= self._min_pass_score
-
-        # Get token totals
-        input_tokens, output_tokens = call_store.total_tokens
-
-        return WorkflowQAResult(
-            run_id=call_store.run_id,
-            client_name="",  # Set by caller
-            total_calls=len(calls),
-            calls_passed=calls_passed,
-            calls_failed=calls_failed,
-            overall_score=overall_score,
-            passed=passed,
-            worst_call_id=worst_call,
-            worst_severity=worst_severity,
-            semantic_result=semantic_result,
-            total_duration_ms=call_store.total_duration_ms,
-            total_input_tokens=input_tokens,
-            total_output_tokens=output_tokens,
         )

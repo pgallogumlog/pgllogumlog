@@ -1,22 +1,26 @@
 """
-Testing Context - Test Runner Orchestrator.
+Testing Context - Compass Test Runner Orchestrator.
 
-This module handles the execution of test cases against the workflow engine,
-including parallel tier testing and blue/green deployment routing.
+This module handles the execution of Compass AI Readiness test cases.
 
 Public API:
-    - TestOrchestrator: Main orchestrator for running tests
-    - TestConfig: Configuration for test runs
-    - TestResult: Result from a single test case
+    - CompassTestOrchestrator: Main orchestrator for running Compass tests
+    - CompassTestResult: Result from a single Compass test
+    - CompassTestSuiteResult: Aggregate results from a test suite
+    - CompassTestCase: Definition of a Compass test case
 """
 
-from contexts.testing.orchestrator import TestOrchestrator
-from contexts.testing.models import TestConfig, TestCase, TestResult, TestSuiteResult
+from contexts.testing.compass_orchestrator import (
+    CompassTestOrchestrator,
+    CompassTestResult,
+    CompassTestSuiteResult,
+)
+from contexts.testing.compass_test_cases import CompassTestCase, get_compass_test_cases
 
 __all__ = [
-    "TestOrchestrator",
-    "TestConfig",
-    "TestCase",
-    "TestResult",
-    "TestSuiteResult",
+    "CompassTestOrchestrator",
+    "CompassTestResult",
+    "CompassTestSuiteResult",
+    "CompassTestCase",
+    "get_compass_test_cases",
 ]

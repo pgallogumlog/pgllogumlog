@@ -1,5 +1,5 @@
 """
-Test Runner API endpoints.
+Test Runner API endpoints - Compass Tests and HTML Results.
 """
 
 from __future__ import annotations
@@ -11,9 +11,6 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from config import get_container
-from contexts.testing import TestConfig, TestOrchestrator
-from contexts.testing.models import Environment, Tier
-from contexts.testing.test_cases import TEST_CASES, get_test_cases
 from contexts.testing.compass_test_cases import COMPASS_TEST_CASES, get_compass_test_cases
 from contexts.testing.compass_orchestrator import CompassTestOrchestrator
 
@@ -21,180 +18,9 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-class TestRunRequest(BaseModel):
-    """Request to run tests."""
-
-    environment: str = "Production"
-    tier: str = "Standard"
-    count: int = Field(default=10, ge=1, le=50)
-    parallel: bool = True
-    max_parallel: int = Field(default=5, ge=1, le=10)
-    save_html: bool = False
-
-
-class TestRunResponse(BaseModel):
-    """Response from test run initiation."""
-
-    message: str
-    total_tests: int
-    tiers: List[str]
-    environment: str
-
-
-class TestCaseInfo(BaseModel):
-    """Information about a test case."""
-
-    company: str
-    category: str
-    prompt_preview: str
-
-
-@router.get("/cases")
-async def list_test_cases(
-    count: int = 50,
-    category: Optional[str] = None,
-):
-    """List available test cases."""
-    cases = get_test_cases(count)
-
-    if category:
-        cases = [c for c in cases if c.category == category]
-
-    return {
-        "total": len(cases),
-        "categories": list(set(c.category for c in TEST_CASES)),
-        "cases": [
-            TestCaseInfo(
-                company=c.company,
-                category=c.category,
-                prompt_preview=c.prompt[:100] + "...",
-            )
-            for c in cases
-        ],
-    }
-
-
-@router.post("/run", response_model=TestRunResponse)
-async def run_tests(
-    request: TestRunRequest,
-    background_tasks: BackgroundTasks,
-):
-    """
-    Initiate a test run.
-
-    Tests run in the background. Use /tests/status to check progress.
-    """
-    container = get_container()
-
-    # Parse tier
-    try:
-        tier = Tier(request.tier)
-    except ValueError:
-        tier = Tier.STANDARD
-
-    # Parse environment
-    try:
-        environment = Environment(request.environment)
-    except ValueError:
-        environment = Environment.PRODUCTION
-
-    # Create config
-    config = TestConfig(
-        environment=environment,
-        tier=tier,
-        count=request.count,
-        parallel=request.parallel,
-        max_parallel=request.max_parallel,
-    )
-
-    # Calculate total tests
-    tiers = config.tiers_to_run
-    total_tests = request.count * len(tiers)
-
-    # Generate run_id for QA capture
-    import uuid
-    run_id = str(uuid.uuid4())[:8]
-
-    # Get capturing AI provider for QA
-    ai_provider = container.capturing_ai_provider(
-        run_id=run_id,
-        run_probabilistic=False,  # Deterministic only for speed
-    )
-
-    # Get sheets client and QA spreadsheet ID for logging
-    sheets_client = None
-    qa_spreadsheet_id = container.settings.google_sheets_qa_log_id
-    if qa_spreadsheet_id:
-        try:
-            sheets_client = container.sheets_client()
-        except Exception:
-            pass  # Sheets logging is optional
-
-    # Determine HTML output directory
-    html_output_dir = "test_results" if request.save_html else None
-
-    # Add background task
-    background_tasks.add_task(
-        _run_tests_background,
-        config=config,
-        ai_provider=ai_provider,
-        sheets_client=sheets_client,
-        qa_spreadsheet_id=qa_spreadsheet_id,
-        html_output_dir=html_output_dir,
-    )
-
-    return TestRunResponse(
-        message=f"Test run initiated with {total_tests} tests",
-        total_tests=total_tests,
-        tiers=tiers,
-        environment=config.environment.value,
-    )
-
-
-async def _run_tests_background(
-    config: TestConfig,
-    ai_provider,
-    sheets_client=None,
-    qa_spreadsheet_id=None,
-    html_output_dir=None,
-):
-    """Run tests in the background."""
-    orchestrator = TestOrchestrator(
-        ai_provider=ai_provider,
-        sheets_client=sheets_client,
-        qa_spreadsheet_id=qa_spreadsheet_id,
-        html_output_dir=html_output_dir,
-    )
-    result = await orchestrator.run_tests(config)
-
-    # Log test results to sheets
-    if sheets_client and qa_spreadsheet_id:
-        await orchestrator.log_results_to_sheets(result)
-
-    return result
-
-
-@router.get("/tiers")
-async def list_tiers():
-    """List available tiers."""
-    return {
-        "tiers": [
-            {"value": t.value, "name": t.name}
-            for t in Tier
-        ]
-    }
-
-
-@router.get("/environments")
-async def list_environments():
-    """List available environments."""
-    return {
-        "environments": [
-            {"value": e.value, "name": e.name}
-            for e in Environment
-        ]
-    }
-
+# ===================
+# HTML RESULTS MODELS AND ENDPOINTS
+# ===================
 
 class HtmlResultMetadata(BaseModel):
     """Metadata for an HTML result file."""
@@ -281,11 +107,8 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
     """
     Parse metadata from HTML result filename.
 
-    Supports two filename formats:
-    1. Workflow format: {tier}_{company}_{timestamp}_{run_id}.html
-       Example: Standard_Acme_Corp_20231227_145030_abc12345.html
-    2. Compass format: compass_{company}_{timestamp}.html
-       Example: compass_Acme_Corp_20231227_145030.html
+    Supports Compass format: compass_{company}_{timestamp}.html
+    Example: compass_Acme_Corp_20231227_145030.html
 
     Args:
         filename: HTML filename
@@ -308,9 +131,6 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
     # Check if this is a compass format file
     if parts[0].lower() == 'compass':
         # Compass format: compass_{company}_{YYYYMMDD_HHMMSS}.html
-        # Note: timestamp strftime("%Y%m%d_%H%M%S") creates underscore, so
-        # "compass_Acme_Corp_20240102_120000.html" splits to
-        # ['compass', 'Acme', 'Corp', '20240102', '120000']
         tier = 'Compass'
 
         # Timestamp is last TWO parts joined: YYYYMMDD_HHMMSS
@@ -328,11 +148,11 @@ def _parse_filename_metadata(filename: str, filepath: str) -> HtmlResultMetadata
         run_id = parts[-2] if len(parts) >= 3 else 'unknown'
 
     else:
-        # Workflow format: {tier}_{company}_{timestamp}_{run_id}.html
+        # Legacy format or unknown: treat first part as tier
         tier = parts[0] if len(parts) > 0 else 'Unknown'
         run_id = parts[-1] if len(parts) > 0 else 'Unknown'
 
-        # Company is everything between tier and last two parts (timestamp and run_id)
+        # Company is everything between tier and last two parts
         company_parts = parts[1:-2] if len(parts) > 3 else []
         company = ' '.join(company_parts) if company_parts else 'Unknown'
 
@@ -696,7 +516,7 @@ async def _run_compass_tests_background(
             category=category,
         )
 
-        # Save HTML reports if requested (wrapped in try/except to not break test flow)
+        # Save HTML reports if requested
         html_save_errors = []
         try:
             logger.info(

@@ -16,7 +16,6 @@ from fastapi.templating import Jinja2Templates
 from config import get_container, get_settings
 from web.api.health import router as health_router
 from web.api.tests import router as tests_router
-from web.api.workflows import router as workflows_router
 from web.api.compass import router as compass_router
 
 logger = structlog.get_logger()
@@ -41,8 +40,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="Workflow Automation System",
-        description="AI Workflow Proposal System with Self-Consistency Voting",
+        title="AI Readiness Compass",
+        description="AI Readiness Assessment and Strategic Planning",
         version="1.0.0",
         lifespan=lifespan,
         debug=settings.app_debug,
@@ -59,7 +58,6 @@ def create_app() -> FastAPI:
 
     # Include API routers
     app.include_router(health_router, prefix="/api", tags=["Health"])
-    app.include_router(workflows_router, prefix="/api/workflows", tags=["Workflows"])
     app.include_router(tests_router, prefix="/api/tests", tags=["Tests"])
     app.include_router(compass_router, prefix="/api/compass", tags=["Compass"])
 
@@ -72,7 +70,7 @@ def create_app() -> FastAPI:
         """Home page with test runner UI."""
         return templates.TemplateResponse(
             "index.html",
-            {"request": request, "title": "Workflow Automation System"},
+            {"request": request, "title": "AI Readiness Compass"},
         )
 
     @app.get("/test-runner", response_class=HTMLResponse)

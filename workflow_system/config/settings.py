@@ -143,7 +143,6 @@ class Settings(BaseSettings):
     # ===================
     # Test Runner
     # ===================
-    test_runner_default_tier: str = Field(default="Standard", description="Default tier")
     test_runner_max_parallel: int = Field(
         default=5, description="Max parallel test executions"
     )
