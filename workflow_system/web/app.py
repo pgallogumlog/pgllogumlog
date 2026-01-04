@@ -81,14 +81,6 @@ def create_app() -> FastAPI:
             {"request": request, "title": "Test Runner"},
         )
 
-    @app.get("/submit", response_class=HTMLResponse)
-    async def submit_form(request: Request):
-        """AI Readiness Compass submission form (legacy route)."""
-        return templates.TemplateResponse(
-            "submit.html",
-            {"request": request, "title": "AI Readiness Compass"},
-        )
-
     @app.get("/compass", response_class=HTMLResponse)
     async def compass_form(request: Request):
         """AI Readiness Compass premium assessment form."""
