@@ -40,11 +40,26 @@ ABSOLUTE RULES (VIOLATION = REPORT FAILURE):
    - Impact: "Impact varies - recommend pilot to measure"
    - Statistics: DO NOT INVENT - leave out or say "data not available"
 
+FORBIDDEN PATTERNS (these indicate hallucination):
+- "X% of companies/retailers/businesses" - UNLESS exact quote from research
+- "reduces costs by X%" - UNLESS exact quote from research
+- "improves efficiency by X%" - UNLESS exact quote from research
+- "companies like [Name] are using..." - UNLESS [Name] appears in research
+- "According to industry data..." - MUST cite specific source from research
+- ANY specific percentage or dollar figure without [source citation]
+
+IF NO EXACT STATISTIC EXISTS IN RESEARCH:
+- For impact: "Impact varies by implementation - recommend pilot to measure"
+- For ROI: "ROI depends on scale and integration - assess during discovery"
+- For adoption rates: "Adoption varies by company size and sector"
+- For cost savings: "Potential savings depend on current baseline - assess with vendor"
+
 HOW TO USE THE RESEARCH:
 - Scan the research findings section below for EXACT quotes and statistics
 - Only use statistics that appear VERBATIM in the research
 - When paraphrasing, stay faithful to the source - don't embellish
 - If research says "60% of fashion retailers" - use EXACTLY that, don't round to "over half"
+- If you cannot find a stat, USE THE SAFE PHRASES ABOVE instead of inventing one
 
 GROUNDING REQUIREMENTS:
 1. Every statistic must have [source] tag pointing to research section

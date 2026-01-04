@@ -405,14 +405,13 @@ class TwoCallCompassEngine:
                     )
                 )
 
-                retry_response = await self._ai.generate(
+                synthesis_output, retry_metadata = await self._ai.generate_json_with_metadata(
                     prompt=retry_prompt,
                     system_prompt=STRATEGIC_SYNTHESIS_SYSTEM,
                     temperature=0.1,  # Even lower temperature for retry
                     max_tokens=8192,
                 )
-                synthesis_output = self._parse_json_response(retry_response)
-                call_2_tokens += len(retry_prompt) // 4 + len(retry_response) // 4  # Rough estimate
+                call_2_tokens += retry_metadata.get("input_tokens", 0) + retry_metadata.get("output_tokens", 0)
 
                 # Re-check grounding after retry
                 is_grounded, grounding_issues = await self._check_synthesis_grounding(
@@ -876,8 +875,9 @@ class TwoCallCompassEngine:
             Tuple of (is_grounded, list_of_hallucination_issues)
         """
         # Build a focused prompt for grounding check
-        research_summary = json.dumps(research_findings, indent=2)[:4000]
-        synthesis_summary = json.dumps(synthesis_output, indent=2)[:4000]
+        # Use larger limits to avoid false positives from truncation
+        research_summary = json.dumps(research_findings, indent=2)[:15000]
+        synthesis_summary = json.dumps(synthesis_output, indent=2)[:8000]
 
         check_prompt = f"""Analyze if the SYNTHESIS recommendations are properly grounded in the RESEARCH findings.
 
@@ -905,7 +905,20 @@ Respond with valid JSON only:
         grounding_system = """You are a QA validator checking if AI recommendations are grounded in research.
 A claim is grounded if it's directly supported by the research findings provided.
 A claim is a hallucination if it makes up facts, statistics, or recommendations not in the research.
-Be strict but fair - flag only clear hallucinations, not reasonable inferences."""
+
+IMPORTANT - DO NOT FLAG THESE AS HALLUCINATIONS:
+1. AI Readiness Score/Tier (e.g., "87.4/100", "Leading tier") - this is CALCULATED from user input, not from research
+2. Company name and basic profile data - this comes from user input
+3. Self-assessment scores (data_maturity, automation_experience, change_readiness) - user-provided
+4. General strategic advice that doesn't cite specific statistics
+
+ONLY FLAG AS HALLUCINATIONS:
+1. Specific statistics with percentages (e.g., "reduces costs by 40%") that aren't in research
+2. Case studies or company examples not mentioned in research
+3. Industry reports or analyst quotes not in research (e.g., "According to McKinsey...")
+4. Specific dollar figures or ROI claims not supported by research
+
+Be strict but fair - flag only clear hallucinations, not reasonable inferences or calculated values."""
 
         try:
             result = await self._ai.generate_json(
