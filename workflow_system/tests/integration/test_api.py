@@ -161,8 +161,7 @@ class TestCompassHtmlSaving:
             # Run the background task
             await _run_compass_tests_background(
                 run_id=run_id,
-                count=1,
-                category=None,
+                test_cases=[test_case],
                 max_parallel=1,
                 ai_provider=mock_ai,
                 email_client=None,

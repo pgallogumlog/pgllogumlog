@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from config import get_container
 from contexts.testing.compass_test_cases import COMPASS_TEST_CASES, get_compass_test_cases
+from contexts.testing.compass_test_loader import CompassTestLoader
 from contexts.testing.compass_orchestrator import CompassTestOrchestrator
 
 logger = structlog.get_logger()
@@ -382,10 +383,13 @@ _compass_test_results: dict = {}
 class CompassTestRunRequest(BaseModel):
     """Request to run Compass tests."""
 
-    count: int = Field(default=5, ge=1, le=15)
-    category: Optional[str] = None  # e.g., "Low Readiness", "High Readiness"
+    count: Optional[int] = Field(default=5, ge=1, le=90)
+    category: Optional[str] = None  # Deprecated: use readiness instead
+    industry: Optional[str] = None  # Run all tests for specific industry
+    readiness: Optional[str] = None  # Filter by readiness level (High/Medium/Low)
     max_parallel: int = Field(default=3, ge=1, le=5)
     save_html: bool = Field(default=True)  # Save HTML reports to disk
+    mode: str = Field(default="sample")  # "sample" or "full_industry"
 
 
 class CompassTestCaseInfo(BaseModel):
@@ -404,20 +408,52 @@ class CompassTestCaseInfo(BaseModel):
 
 @router.get("/compass/cases")
 async def list_compass_test_cases(
-    count: int = 15,
+    count: Optional[int] = None,
     category: Optional[str] = None,
+    industry: Optional[str] = None,
+    readiness: Optional[str] = None,
 ):
-    """List available Compass test cases."""
-    cases = get_compass_test_cases(count)
+    """
+    List available Compass test cases.
 
-    if category:
+    Args:
+        count: Maximum number of cases to return
+        category: Filter by category (e.g., "Low Readiness")
+        industry: Filter by specific industry (e.g., "Technology")
+        readiness: Filter by readiness level (e.g., "High", "Medium", "Low")
+
+    Returns:
+        Dictionary with total count, available filters, and test cases
+    """
+    loader = CompassTestLoader()
+
+    # Start with all cases
+    cases = loader.load_all()
+
+    # Apply filters
+    if industry:
+        cases = loader.filter_by_industry(industry)
+
+    if readiness:
+        cases = loader.filter_by_readiness(readiness)
+    elif category:  # Fallback to category for backwards compatibility
         cases = [c for c in cases if c.category == category]
 
-    categories = list(set(c.category for c in COMPASS_TEST_CASES))
+    # Limit count if specified
+    if count is not None:
+        cases = cases[:count]
+
+    # Get available filters
+    all_industries = loader.list_industries()
+    all_categories = list(set(c.category for c in loader.load_all()))
+    metadata = loader.get_metadata()
 
     return {
         "total": len(cases),
-        "categories": categories,
+        "industries": all_industries,
+        "categories": all_categories,
+        "readiness_levels": ["Low", "Medium", "High"],
+        "metadata": metadata,
         "cases": [
             {
                 "company_name": c.company_name,
@@ -465,11 +501,39 @@ async def run_compass_tests(
     except Exception:
         sheets_logger = None
 
+    # Determine test selection strategy
+    loader = CompassTestLoader()
+    if request.mode == "full_industry" and request.industry:
+        # Get all tests for specific industry
+        test_cases = loader.filter_by_industry(request.industry)
+        test_count = len(test_cases)
+        test_description = f"all tests for {request.industry}"
+    elif request.industry:
+        # Get sample from specific industry
+        industry_cases = loader.filter_by_industry(request.industry)
+        test_count = min(request.count or 5, len(industry_cases))
+        test_cases = industry_cases[:test_count]
+        test_description = f"{test_count} tests from {request.industry}"
+    elif request.readiness:
+        # Get tests for specific readiness level
+        readiness_cases = loader.filter_by_readiness(request.readiness)
+        test_count = min(request.count or 5, len(readiness_cases))
+        test_cases = readiness_cases[:test_count]
+        test_description = f"{test_count} {request.readiness} readiness tests"
+    else:
+        # Random sample across all industries
+        test_count = request.count or 5
+        test_cases = loader.get_stratified_sample(test_count)
+        test_description = f"{test_count} tests (stratified sample)"
+
     # Store initial status
     _compass_test_results[run_id] = {
         "status": "running",
-        "count": request.count,
+        "count": test_count,
         "category": request.category,
+        "industry": request.industry,
+        "readiness": request.readiness,
+        "mode": request.mode,
         "started_at": None,
         "result": None,
     }
@@ -478,8 +542,7 @@ async def run_compass_tests(
     background_tasks.add_task(
         _run_compass_tests_background,
         run_id=run_id,
-        count=request.count,
-        category=request.category,
+        test_cases=test_cases,
         max_parallel=request.max_parallel,
         ai_provider=ai_provider,
         email_client=email_client,
@@ -488,18 +551,19 @@ async def run_compass_tests(
     )
 
     return {
-        "message": f"Compass test run initiated with {request.count} tests",
+        "message": f"Compass test run initiated: {test_description}",
         "run_id": run_id,
-        "count": request.count,
-        "category": request.category,
+        "count": test_count,
+        "industry": request.industry,
+        "readiness": request.readiness,
+        "mode": request.mode,
         "status_url": f"/api/tests/compass/status/{run_id}",
     }
 
 
 async def _run_compass_tests_background(
     run_id: str,
-    count: int,
-    category: Optional[str],
+    test_cases: list,
     max_parallel: int,
     ai_provider,
     email_client=None,
@@ -521,8 +585,7 @@ async def _run_compass_tests_background(
         )
 
         result = await orchestrator.run_tests(
-            count=count,
-            category=category,
+            test_cases=test_cases,
         )
 
         # Save HTML reports if requested

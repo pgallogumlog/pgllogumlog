@@ -135,27 +135,31 @@ class CompassTestOrchestrator:
 
     async def run_tests(
         self,
-        count: int = 5,
+        count: Optional[int] = None,
         category: Optional[str] = None,
+        test_cases: Optional[list] = None,
     ) -> CompassTestSuiteResult:
         """
         Run Compass test suite.
 
         Args:
-            count: Number of tests to run (1-15)
-            category: Optional category filter (e.g., "Low Readiness", "High Readiness")
+            count: Number of tests to run (deprecated, use test_cases)
+            category: Optional category filter (deprecated, use test_cases)
+            test_cases: List of CompassTestCase objects to run (preferred)
 
         Returns:
             CompassTestSuiteResult with all results
         """
         start_time = datetime.now()
 
-        # Get test cases
-        if category:
-            from contexts.testing.compass_test_cases import get_compass_test_cases_by_category
-            test_cases = get_compass_test_cases_by_category(category)[:count]
-        else:
-            test_cases = get_compass_test_cases(count)
+        # Get test cases - prefer explicit test_cases parameter
+        if test_cases is None:
+            # Fallback to old count/category parameters for backwards compatibility
+            if category:
+                from contexts.testing.compass_test_cases import get_compass_test_cases_by_category
+                test_cases = get_compass_test_cases_by_category(category)[:count or 15]
+            else:
+                test_cases = get_compass_test_cases(count or 5)
 
         logger.info(
             "compass_test_suite_started",
