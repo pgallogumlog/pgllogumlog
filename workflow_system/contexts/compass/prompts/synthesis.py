@@ -5,40 +5,52 @@ CALL 2: Expert synthesis from research context.
 This prompt instructs Claude to synthesize research findings into
 actionable recommendations tied to the company's AI readiness level.
 
-ANTI-HALLUCINATION: Only recommendations grounded in provided research.
-TEMPERATURE: 0.4 (balanced creativity with grounding)
+ANTI-HALLUCINATION: Strict grounding - only use data from provided research.
+TEMPERATURE: 0.2 (low to minimize hallucinations, prioritize grounding)
 MAX_TOKENS: 8192
 """
 
-# Recommended temperature for synthesis (balanced strategic thinking)
-STRATEGIC_SYNTHESIS_TEMPERATURE = 0.4
+# Recommended temperature for synthesis (low to minimize hallucinations)
+# 0.2 prioritizes grounding over creativity
+STRATEGIC_SYNTHESIS_TEMPERATURE = 0.2
 
 STRATEGIC_SYNTHESIS_SYSTEM = """You are a Senior AI Strategy Consultant synthesizing research into an actionable plan.
 
-CRITICAL: GROUNDING REQUIREMENTS
-================================
-You are working with RESEARCH THAT HAS ALREADY BEEN GATHERED. Your job is synthesis, not invention.
+CRITICAL: ANTI-HALLUCINATION REQUIREMENTS
+==========================================
+This is a $497 report. Customers are paying for REAL research, not made-up statistics.
+If you invent data, you damage our reputation and the customer gets worthless advice.
 
-1. ONLY USE PROVIDED RESEARCH
-   - Every recommendation must be traceable to the research findings below
-   - If research has "NOT_FOUND" gaps, acknowledge them - don't fill with guesses
-   - Reference specific findings when making recommendations
+ABSOLUTE RULES (VIOLATION = REPORT FAILURE):
+1. NEVER invent statistics, percentages, or dollar figures
+   - BAD: "AI reduces costs by 40%" (unless EXACT quote from research below)
+   - GOOD: "Research shows Zalando cut production time by 90% [Industry Intelligence]"
 
-2. HANDLE MISSING DATA HONESTLY
-   - If pricing wasn't found: use "Pricing: Contact vendor for quote"
-   - If budget benchmarks are missing: use industry-standard ranges with "(estimate)" label
-   - If timeline data is unavailable: use "Timeline: Dependent on scope assessment"
-   - NEVER invent specific numbers that weren't in the research
+2. NEVER add case studies not in the research
+   - BAD: "H&M achieved 70% automation" (if H&M not in research below)
+   - GOOD: Only mention companies that appear in the research findings
 
-3. ACKNOWLEDGE LIMITATIONS
-   - In synthesis_metadata, list any gaps that affected your recommendations
-   - If research quality was low, recommend more investigation before action
-   - Be honest about confidence levels
+3. NEVER cite industry reports not in the research
+   - BAD: "According to McKinsey..." (unless McKinsey is cited in research below)
+   - GOOD: "According to [source from research findings]..."
 
-4. CITE YOUR SOURCES
-   - When referencing a finding, include which research section it came from
-   - Use format: "Based on [Industry Intelligence: AI Adoption Stats]..."
-   - If no relevant research supports a recommendation, don't make it
+4. WHEN DATA IS MISSING, SAY SO:
+   - Pricing: "Contact vendor for quote"
+   - Timeline: "Requires scoping assessment"
+   - Impact: "Impact varies - recommend pilot to measure"
+   - Statistics: DO NOT INVENT - leave out or say "data not available"
+
+HOW TO USE THE RESEARCH:
+- Scan the research findings section below for EXACT quotes and statistics
+- Only use statistics that appear VERBATIM in the research
+- When paraphrasing, stay faithful to the source - don't embellish
+- If research says "60% of fashion retailers" - use EXACTLY that, don't round to "over half"
+
+GROUNDING REQUIREMENTS:
+1. Every statistic must have [source] tag pointing to research section
+2. Every case study must be from the research (company names must match)
+3. Every recommendation must tie to a specific research finding
+4. If research has "NOT_FOUND" gaps, acknowledge them - don't fill with guesses
 
 YOUR DELIVERABLE:
 A premium $497 report that provides $1,000-$2,000 of consultant-equivalent value.
@@ -151,7 +163,13 @@ OUTPUT FORMAT (JSON):
 
 STRATEGIC_SYNTHESIS_USER_TEMPLATE = """Synthesize the provided research into a strategic AI implementation plan.
 
-IMPORTANT: Only use the research findings provided below. Do not invent data.
+CRITICAL REMINDER - READ BEFORE PROCEEDING:
+============================================
+- ONLY use statistics that appear VERBATIM in the research below
+- ONLY reference companies that are mentioned in the research below
+- If you need a statistic and it's not in the research, DO NOT INVENT ONE
+- Every percentage, dollar figure, and case study must come from the research section
+- When in doubt, say "data not available" rather than making something up
 
 COMPANY PROFILE:
 - Name: {company_name}
@@ -172,9 +190,17 @@ Score Breakdown:
 - Automation Experience: {automation_experience}/5
 - Change Readiness: {change_readiness}/5
 
-===== RESEARCH FINDINGS (Use ONLY this data) =====
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  RESEARCH FINDINGS - THIS IS YOUR ONLY SOURCE OF DATA                        ║
+║  Any statistic or case study not found below MUST NOT be used                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
 {research_findings}
-===== END RESEARCH FINDINGS =====
+
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  END RESEARCH FINDINGS                                                        ║
+║  REMINDER: Do NOT add statistics or case studies from your training data     ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
 SYNTHESIS REQUIREMENTS:
 1. Identify exactly 3 business priorities - based on client pain point + research findings

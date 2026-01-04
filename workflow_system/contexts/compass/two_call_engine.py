@@ -366,6 +366,66 @@ class TwoCallCompassEngine:
             is_grounded, grounding_issues = await self._check_synthesis_grounding(
                 research_findings, synthesis_output
             )
+            hallucination_count = len([i for i in grounding_issues if "HALLUCINATION" in i])
+
+            # Step 5c: RETRY synthesis if too many hallucinations (max 1 retry)
+            if hallucination_count >= 3:
+                logger.warning(
+                    "synthesis_retry_triggered",
+                    run_id=run_id,
+                    hallucination_count=hallucination_count,
+                    reason="Too many hallucinations detected, retrying with stricter prompt",
+                )
+
+                # Retry synthesis with stricter instructions
+                readiness_tier = get_readiness_tier(ai_readiness.overall_score)
+                retry_prompt = (
+                    "RETRY: Your previous synthesis contained hallucinations. "
+                    "This is your FINAL attempt. Follow these rules EXACTLY:\n\n"
+                    "1. DO NOT include ANY statistics unless they appear VERBATIM in the research\n"
+                    "2. DO NOT mention ANY company names unless they appear in the research\n"
+                    "3. For impact metrics, say 'Impact varies - recommend pilot' instead of making up numbers\n"
+                    "4. For pricing, say 'Contact vendor for quote'\n"
+                    "5. It is BETTER to have fewer statistics than to invent them\n\n"
+                    + STRATEGIC_SYNTHESIS_USER_TEMPLATE.format(
+                        company_name=request.company_name,
+                        website=request.website or "Not provided",
+                        industry=request.industry,
+                        company_size=request.company_size,
+                        pain_point=request.pain_point,
+                        description=request.description,
+                        overall_score=ai_readiness.overall_score,
+                        self_assessment_score=ai_readiness.self_assessment_score,
+                        research_score=ai_readiness.research_score,
+                        readiness_tier=readiness_tier,
+                        data_maturity=request.self_assessment.data_maturity,
+                        automation_experience=request.self_assessment.automation_experience,
+                        change_readiness=request.self_assessment.change_readiness,
+                        research_findings=json.dumps(research_findings, indent=2),
+                    )
+                )
+
+                retry_response = await self._ai.generate(
+                    prompt=retry_prompt,
+                    system_prompt=STRATEGIC_SYNTHESIS_SYSTEM,
+                    temperature=0.1,  # Even lower temperature for retry
+                    max_tokens=8192,
+                )
+                synthesis_output = self._parse_json_response(retry_response)
+                call_2_tokens += len(retry_prompt) // 4 + len(retry_response) // 4  # Rough estimate
+
+                # Re-check grounding after retry
+                is_grounded, grounding_issues = await self._check_synthesis_grounding(
+                    research_findings, synthesis_output
+                )
+                hallucination_count = len([i for i in grounding_issues if "HALLUCINATION" in i])
+                logger.info(
+                    "synthesis_retry_completed",
+                    run_id=run_id,
+                    hallucination_count_after_retry=hallucination_count,
+                    is_grounded=is_grounded,
+                )
+
             synthesis_issues.extend(grounding_issues)
 
             if not synthesis_valid or not is_grounded:
@@ -374,12 +434,14 @@ class TwoCallCompassEngine:
                     run_id=run_id,
                     issues=synthesis_issues,
                     is_grounded=is_grounded,
+                    hallucination_count=hallucination_count,
                 )
                 # Add issues to metadata for transparency
                 if "synthesis_metadata" not in synthesis_output:
                     synthesis_output["synthesis_metadata"] = {}
                 synthesis_output["synthesis_metadata"]["validation_issues"] = synthesis_issues
                 synthesis_output["synthesis_metadata"]["grounding_passed"] = is_grounded
+                synthesis_output["synthesis_metadata"]["hallucination_count"] = hallucination_count
 
             # Step 6: Parse synthesis into domain models
             logger.info("two_call_step", run_id=run_id, step="parse_synthesis")
@@ -407,13 +469,16 @@ class TwoCallCompassEngine:
                 synthesis_issues
             )
 
-            # QA passes if all validators pass
+            # QA passes if all validators pass AND hallucinations are minimal
+            # Penalize QA score for each hallucination after retry
+            grounding_penalty = min(hallucination_count, 3)  # Max 3 point penalty
             qa_passed = (
                 call_1_qa.passed and
                 call_2_qa.passed and
-                cross_call_qa.passed
+                cross_call_qa.passed and
+                hallucination_count <= 2  # Allow up to 2 minor hallucinations
             )
-            qa_score = min(call_1_qa.score, call_2_qa.score, cross_call_qa.score)
+            qa_score = max(1, min(call_1_qa.score, call_2_qa.score, cross_call_qa.score) - grounding_penalty)
 
             logger.info(
                 "qa_validation_aggregate",
