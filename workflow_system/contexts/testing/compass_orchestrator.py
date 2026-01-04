@@ -20,6 +20,7 @@ import structlog
 from config.dependency_injection import AIProvider, EmailClient
 from contexts.compass.models import CompassRequest, SelfAssessment
 from contexts.compass.two_call_engine import TwoCallCompassEngine, TwoCallResult
+from contexts.compass.sheets_logger import CompassQASheetsLogger
 from contexts.testing.compass_test_cases import CompassTestCase, get_compass_test_cases
 
 logger = structlog.get_logger()
@@ -115,6 +116,7 @@ class CompassTestOrchestrator:
         self,
         ai_provider: AIProvider,
         email_client: Optional[EmailClient] = None,
+        sheets_logger: Optional[CompassQASheetsLogger] = None,
         max_parallel: int = 3,
     ):
         """
@@ -123,10 +125,12 @@ class CompassTestOrchestrator:
         Args:
             ai_provider: AI provider for Compass engine
             email_client: Optional email client for sending reports
+            sheets_logger: Optional sheets logger for QA logging
             max_parallel: Maximum parallel test executions
         """
         self._ai = ai_provider
         self._email_client = email_client
+        self._sheets_logger = sheets_logger
         self._max_parallel = max_parallel
 
     async def run_tests(
@@ -246,6 +250,7 @@ class CompassTestOrchestrator:
                 engine = TwoCallCompassEngine(
                     ai_provider=self._ai,
                     email_client=self._email_client,
+                    sheets_logger=self._sheets_logger,
                     enable_web_search=True,
                 )
 

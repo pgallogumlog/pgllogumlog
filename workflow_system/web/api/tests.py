@@ -459,6 +459,12 @@ async def run_compass_tests(
     except Exception:
         email_client = None
 
+    # Get sheets logger for QA logging (optional)
+    try:
+        sheets_logger = container.compass_sheets_logger()
+    except Exception:
+        sheets_logger = None
+
     # Store initial status
     _compass_test_results[run_id] = {
         "status": "running",
@@ -477,6 +483,7 @@ async def run_compass_tests(
         max_parallel=request.max_parallel,
         ai_provider=ai_provider,
         email_client=email_client,
+        sheets_logger=sheets_logger,
         save_html=request.save_html,
     )
 
@@ -496,6 +503,7 @@ async def _run_compass_tests_background(
     max_parallel: int,
     ai_provider,
     email_client=None,
+    sheets_logger=None,
     save_html: bool = True,
 ):
     """Run Compass tests in the background."""
@@ -508,6 +516,7 @@ async def _run_compass_tests_background(
         orchestrator = CompassTestOrchestrator(
             ai_provider=ai_provider,
             email_client=email_client,
+            sheets_logger=sheets_logger,
             max_parallel=max_parallel,
         )
 

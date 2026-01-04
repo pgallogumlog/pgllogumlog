@@ -296,6 +296,30 @@ class Container:
             webhook_secret=self._settings.stripe_webhook_secret,
         )
 
+    def compass_sheets_logger(self):
+        """
+        Get Compass QA sheets logger instance.
+
+        Returns a logger that writes QA validation results to Google Sheets.
+        Logs to two sheets:
+        - "Compass AI Call Log": Per-call validation details
+        - "Compass QA Summary": Per-run summaries
+        """
+        if "compass_sheets_logger" in self._overrides:
+            return self._overrides["compass_sheets_logger"]
+
+        # Return None if no spreadsheet ID configured
+        spreadsheet_id = self._settings.google_sheets_qa_log_id
+        if not spreadsheet_id:
+            return None
+
+        from contexts.compass.sheets_logger import CompassQASheetsLogger
+
+        return CompassQASheetsLogger(
+            sheets_client=self.sheets_client(),
+            spreadsheet_id=spreadsheet_id,
+        )
+
 
 # Global container instance
 @lru_cache

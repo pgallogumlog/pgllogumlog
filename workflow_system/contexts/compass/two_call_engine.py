@@ -199,7 +199,7 @@ class TwoCallCompassEngine:
             # Step 2: CALL 1 - Deep Research
             logger.info("two_call_step", run_id=run_id, step="call_1_research")
             start_call_1 = datetime.now()
-            research_findings = await self._call_1_deep_research(request)
+            research_findings, call_1_tokens = await self._call_1_deep_research(request)
             call_1_duration = (datetime.now() - start_call_1).total_seconds() * 1000
 
             # Step 2b: Validate Call 1 output
@@ -239,7 +239,7 @@ class TwoCallCompassEngine:
             # Step 4: CALL 2 - Strategic Synthesis
             logger.info("two_call_step", run_id=run_id, step="call_2_synthesis")
             start_call_2 = datetime.now()
-            synthesis_output = await self._call_2_synthesis(
+            synthesis_output, call_2_tokens = await self._call_2_synthesis(
                 request=request,
                 ai_readiness=ai_readiness,
                 research_findings=research_findings,
@@ -277,21 +277,31 @@ class TwoCallCompassEngine:
                 research_used_percent=f"{cross_call_qa.research_used_percent:.0f}%",
             )
 
-            # Step 5: Validate synthesis for hallucinations (legacy check)
+            # Step 5: Validate synthesis for hallucinations
             logger.info("two_call_step", run_id=run_id, step="validate_synthesis")
             synthesis_valid, synthesis_issues = self._validate_synthesis_quality(
                 synthesis_output, request
             )
-            if not synthesis_valid:
+
+            # Step 5b: AI-powered grounding check (hallucination detection)
+            logger.info("two_call_step", run_id=run_id, step="grounding_check")
+            is_grounded, grounding_issues = await self._check_synthesis_grounding(
+                research_findings, synthesis_output
+            )
+            synthesis_issues.extend(grounding_issues)
+
+            if not synthesis_valid or not is_grounded:
                 logger.warning(
                     "synthesis_validation_failed",
                     run_id=run_id,
                     issues=synthesis_issues,
+                    is_grounded=is_grounded,
                 )
                 # Add issues to metadata for transparency
                 if "synthesis_metadata" not in synthesis_output:
                     synthesis_output["synthesis_metadata"] = {}
                 synthesis_output["synthesis_metadata"]["validation_issues"] = synthesis_issues
+                synthesis_output["synthesis_metadata"]["grounding_passed"] = is_grounded
 
             # Step 6: Parse synthesis into domain models
             logger.info("two_call_step", run_id=run_id, step="parse_synthesis")
@@ -386,6 +396,8 @@ class TwoCallCompassEngine:
                 qa_score=qa_score,
                 payment_captured=payment_captured,
                 email_sent=email_sent,
+                call_1_tokens=call_1_tokens,
+                call_2_tokens=call_2_tokens,
                 call_1_qa=call_1_qa,
                 call_2_qa=call_2_qa,
                 cross_call_qa=cross_call_qa,
@@ -397,6 +409,7 @@ class TwoCallCompassEngine:
                 logger.info("two_call_step", run_id=run_id, step="log_qa_to_sheets")
                 try:
                     # Build summary for sheets
+                    total_tokens = call_1_tokens + call_2_tokens
                     qa_summary = CompassQASummary(
                         run_id=run_id,
                         timestamp=datetime.now(),
@@ -408,7 +421,7 @@ class TwoCallCompassEngine:
                         call_2_qa=call_2_qa,
                         cross_call_qa=cross_call_qa,
                         overall_qa_passed=qa_passed,
-                        total_tokens=0,  # TODO: capture from API responses
+                        total_tokens=total_tokens,
                         duration_seconds=(datetime.now() - start_call_1).total_seconds(),
                         email_sent=email_sent,
                         payment_captured=payment_captured,
@@ -456,12 +469,15 @@ class TwoCallCompassEngine:
                 error=str(e),
             )
 
-    async def _call_1_deep_research(self, request: CompassRequest) -> dict:
+    async def _call_1_deep_research(self, request: CompassRequest) -> tuple[dict, int]:
         """
         CALL 1: Deep Research with web search.
 
         Gathers comprehensive data about the company, industry, and
         implementation patterns. Uses Claude's native web search.
+
+        Returns:
+            Tuple of (research_findings, total_tokens)
         """
         user_prompt = DEEP_RESEARCH_USER_TEMPLATE.format(
             company_name=request.company_name,
@@ -476,23 +492,30 @@ class TwoCallCompassEngine:
         )
 
         try:
-            # Use generate_json for structured output
+            # Use generate_json_with_metadata for structured output + token tracking
             # Low temperature (0.2) for factual, grounded research
-            research = await self._ai.generate_json(
+            research, metadata = await self._ai.generate_json_with_metadata(
                 prompt=user_prompt,
                 system_prompt=DEEP_RESEARCH_SYSTEM,
                 temperature=DEEP_RESEARCH_TEMPERATURE,  # 0.2 - factual, low hallucination
                 max_tokens=8192,  # Allow comprehensive research
             )
 
+            # Calculate total tokens from metadata
+            input_tokens = metadata.get("input_tokens", 0)
+            output_tokens = metadata.get("output_tokens", 0)
+            total_tokens = input_tokens + output_tokens
+
             logger.info(
                 "call_1_research_completed",
                 company_name=request.company_name,
                 total_findings=research.get("research_metadata", {}).get("total_findings", 0),
                 sources_consulted=research.get("research_metadata", {}).get("sources_consulted", 0),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
-            return research
+            return research, total_tokens
 
         except Exception as e:
             logger.error("call_1_research_failed", error=str(e))
@@ -507,19 +530,22 @@ class TwoCallCompassEngine:
                     "sources_consulted": 0,
                     "research_gaps": [f"Research failed: {str(e)}"],
                 },
-            }
+            }, 0
 
     async def _call_2_synthesis(
         self,
         request: CompassRequest,
         ai_readiness: AIReadinessScore,
         research_findings: dict,
-    ) -> dict:
+    ) -> tuple[dict, int]:
         """
         CALL 2: Strategic Synthesis.
 
         Uses complete research context to generate prioritized recommendations,
         anti-recommendations, and 90-day roadmap.
+
+        Returns:
+            Tuple of (synthesis_output, total_tokens)
         """
         readiness_tier = get_readiness_tier(ai_readiness.overall_score)
 
@@ -541,13 +567,19 @@ class TwoCallCompassEngine:
         )
 
         try:
+            # Use generate_json_with_metadata for token tracking
             # Moderate temperature (0.4) for balanced strategic thinking
-            synthesis = await self._ai.generate_json(
+            synthesis, metadata = await self._ai.generate_json_with_metadata(
                 prompt=user_prompt,
                 system_prompt=STRATEGIC_SYNTHESIS_SYSTEM,
                 temperature=STRATEGIC_SYNTHESIS_TEMPERATURE,  # 0.4 - balanced creativity with grounding
                 max_tokens=8192,
             )
+
+            # Calculate total tokens from metadata
+            input_tokens = metadata.get("input_tokens", 0)
+            output_tokens = metadata.get("output_tokens", 0)
+            total_tokens = input_tokens + output_tokens
 
             logger.info(
                 "call_2_synthesis_completed",
@@ -555,9 +587,11 @@ class TwoCallCompassEngine:
                 priorities_count=len(synthesis.get("priorities", [])),
                 avoid_count=len(synthesis.get("avoid", [])),
                 roadmap_months=len(synthesis.get("roadmap", [])),
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
 
-            return synthesis
+            return synthesis, total_tokens
 
         except Exception as e:
             logger.error("call_2_synthesis_failed", error=str(e))
@@ -667,6 +701,86 @@ class TwoCallCompassEngine:
             )
 
         return is_valid, issues
+
+    async def _check_synthesis_grounding(
+        self,
+        research_findings: dict,
+        synthesis_output: dict,
+    ) -> tuple[bool, list[str]]:
+        """
+        AI-powered check that synthesis recommendations are grounded in research.
+
+        Uses Claude to verify that priority recommendations and claims are
+        actually supported by the research findings, not hallucinated.
+
+        Returns:
+            Tuple of (is_grounded, list_of_hallucination_issues)
+        """
+        # Build a focused prompt for grounding check
+        research_summary = json.dumps(research_findings, indent=2)[:4000]
+        synthesis_summary = json.dumps(synthesis_output, indent=2)[:4000]
+
+        check_prompt = f"""Analyze if the SYNTHESIS recommendations are properly grounded in the RESEARCH findings.
+
+RESEARCH FINDINGS:
+{research_summary}
+
+SYNTHESIS OUTPUT:
+{synthesis_summary}
+
+Check for:
+1. Are the priority recommendations based on actual research findings?
+2. Are any statistics, percentages, or specific claims fabricated (not from research)?
+3. Are tool recommendations grounded in industry patterns from research?
+4. Does the synthesis make claims that go beyond what the research supports?
+
+Respond with valid JSON only:
+{{
+    "grounded": true/false,
+    "confidence": 0.0-1.0,
+    "hallucinations": ["list of specific ungrounded claims found"],
+    "well_grounded_claims": ["list of claims properly supported by research"],
+    "explanation": "brief explanation"
+}}"""
+
+        grounding_system = """You are a QA validator checking if AI recommendations are grounded in research.
+A claim is grounded if it's directly supported by the research findings provided.
+A claim is a hallucination if it makes up facts, statistics, or recommendations not in the research.
+Be strict but fair - flag only clear hallucinations, not reasonable inferences."""
+
+        try:
+            result = await self._ai.generate_json(
+                prompt=check_prompt,
+                system_prompt=grounding_system,
+                temperature=0.0,  # Deterministic for consistency
+                max_tokens=1000,
+            )
+
+            is_grounded = result.get("grounded", True)
+            hallucinations = result.get("hallucinations", [])
+            confidence = result.get("confidence", 1.0)
+
+            logger.info(
+                "synthesis_grounding_check",
+                is_grounded=is_grounded,
+                confidence=confidence,
+                hallucination_count=len(hallucinations),
+            )
+
+            issues = []
+            if not is_grounded and hallucinations:
+                for h in hallucinations[:5]:  # Limit to 5
+                    issues.append(f"HALLUCINATION: {h}")
+
+            return is_grounded, issues
+
+        except Exception as e:
+            logger.warning(
+                "grounding_check_failed",
+                error=str(e),
+            )
+            # Don't fail validation if grounding check fails
+            return True, [f"Grounding check skipped: {e}"]
 
     def _score_research_quality(self, research: dict) -> float:
         """

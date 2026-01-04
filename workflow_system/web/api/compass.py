@@ -184,10 +184,12 @@ async def submit_compass(request: CompassSubmitRequest):
             # Create two-call engine with AI provider (no payment client in test mode)
             ai_provider = container.ai_provider()
             email_client = container.email_client()
+            sheets_logger = container.compass_sheets_logger()
 
             engine = TwoCallCompassEngine(
                 ai_provider=ai_provider,
                 email_client=email_client,
+                sheets_logger=sheets_logger,
                 enable_web_search=True,
             )
 
