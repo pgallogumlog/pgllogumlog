@@ -703,21 +703,39 @@ class ClaudeAdapter:
                 # Extract text content and citations from response
                 text_content = ""
                 citations: list[dict] = []
+                seen_urls: set[str] = set()  # Deduplicate citations
 
                 for block in response.content:
-                    # Text blocks contain the JSON response
+                    # Text blocks contain the JSON response and inline citations
                     if hasattr(block, "text"):
                         text_content += block.text
-                    # Web search tool results contain citations
+                        # Text blocks may have citations attribute with inline refs
+                        block_citations = getattr(block, "citations", None)
+                        if block_citations:
+                            for cite in block_citations:
+                                url = getattr(cite, "url", "")
+                                if url and url not in seen_urls:
+                                    seen_urls.add(url)
+                                    citations.append({
+                                        "title": getattr(cite, "title", ""),
+                                        "url": url,
+                                        "snippet": getattr(cite, "cited_text", "")[:500],
+                                        "source": "claude_web_search",
+                                    })
+                    # Web search tool results contain search result blocks
                     elif hasattr(block, "type") and block.type == "web_search_tool_result":
-                        search_results = getattr(block, "search_results", [])
+                        # The content attribute contains WebSearchResultBlock items
+                        search_results = getattr(block, "content", [])
                         for result in search_results:
-                            citations.append({
-                                "title": getattr(result, "title", ""),
-                                "url": getattr(result, "url", ""),
-                                "snippet": getattr(result, "snippet", "")[:500],
-                                "source": "claude_web_search",
-                            })
+                            url = getattr(result, "url", "")
+                            if url and url not in seen_urls:
+                                seen_urls.add(url)
+                                citations.append({
+                                    "title": getattr(result, "title", ""),
+                                    "url": url,
+                                    "snippet": getattr(result, "page_content", "")[:500],
+                                    "source": "claude_web_search",
+                                })
 
                 # Parse the JSON response
                 parsed = self._parse_json_response(text_content)
