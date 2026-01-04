@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
+    <title>Compass Test Runner</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -12,9 +12,10 @@
             min-height: 100vh;
             color: #fff;
         }
-        .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+        .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
         header { margin-bottom: 2rem; }
         h1 { color: #00d4ff; margin-bottom: 0.5rem; }
+        .subtitle { color: #8892b0; font-size: 1.1rem; margin-bottom: 1rem; }
         .back-link { color: #8892b0; text-decoration: none; }
         .back-link:hover { color: #00d4ff; }
 
@@ -103,51 +104,6 @@
             color: #8892b0;
         }
         .info-box strong { color: #00d4ff; }
-
-        /* Mode Toggle Tabs */
-        .mode-tabs {
-            display: flex;
-            gap: 0;
-            margin-bottom: 1.5rem;
-            background: rgba(255,255,255,0.05);
-            border-radius: 8px;
-            padding: 4px;
-        }
-        .mode-tab {
-            flex: 1;
-            padding: 0.75rem 1rem;
-            background: transparent;
-            border: none;
-            border-radius: 6px;
-            color: #8892b0;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .mode-tab:hover {
-            color: #fff;
-        }
-        .mode-tab.active {
-            background: linear-gradient(90deg, #00d4ff, #7c3aed);
-            color: #fff;
-        }
-        .mode-content {
-            display: none;
-        }
-        .mode-content.active {
-            display: block;
-        }
-        .compass-badge {
-            display: inline-block;
-            background: linear-gradient(90deg, #ff6b6b, #feca57);
-            color: #1a1a2e;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            margin-left: 0.5rem;
-        }
 
         .results-browser {
             margin-top: 2rem;
@@ -289,111 +245,97 @@
                 opacity: 1;
             }
         }
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <a href="/" class="back-link">← Back to Dashboard</a>
-            <h1>🧪 Test Runner</h1>
+            <h1>🧭 AI Readiness Compass Test Runner</h1>
+            <p class="subtitle">Test real companies across industries and readiness levels</p>
         </header>
 
         <div class="form-card">
-            <!-- Mode Tabs -->
-            <div class="mode-tabs">
-                <button type="button" class="mode-tab active" data-mode="workflow">Workflow Tests</button>
-                <button type="button" class="mode-tab" data-mode="compass">Compass Tests <span class="compass-badge">NEW</span></button>
-            </div>
-
-            <!-- Workflow Mode -->
-            <div class="mode-content active" id="workflowMode">
-                <form id="testForm">
+            <form id="compassTestForm">
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="environment">Target Environment</label>
-                        <select id="environment" name="environment">
-                            <option value="Production">Production</option>
-                            <option value="Staging">Staging</option>
+                        <label for="compassIndustry">Industry Filter (Optional)</label>
+                        <select id="compassIndustry" name="industry">
+                            <option value="">All Industries</option>
+                            <option value="Technology">Technology</option>
+                            <option value="Healthcare">Healthcare</option>
+                            <option value="Financial Services">Financial Services</option>
+                            <option value="Manufacturing">Manufacturing</option>
+                            <option value="Construction">Construction</option>
+                            <option value="Transportation">Transportation</option>
+                            <option value="Hospitality">Hospitality</option>
+                            <option value="Retail">Retail</option>
+                            <option value="Education">Education</option>
+                            <option value="Professional Services">Professional Services</option>
+                            <option value="Nonprofit">Nonprofit</option>
                         </select>
                     </div>
 
                     <div class="form-group">
-                        <label for="tier">Tier</label>
-                        <select id="tier" name="tier">
-                            <option value="Standard">Standard</option>
-                            <option value="Budget">Budget</option>
-                            <option value="Premium">Premium</option>
-                            <option value="All Tiers (Comparison)">All Tiers (Comparison)</option>
+                        <label for="compassReadiness">Readiness Level (Optional)</label>
+                        <select id="compassReadiness" name="readiness">
+                            <option value="">All Levels</option>
+                            <option value="Low">Low Readiness</option>
+                            <option value="Medium">Medium Readiness</option>
+                            <option value="High">High Readiness</option>
                         </select>
                     </div>
-
-                    <div class="form-group">
-                        <label for="count">Number of Test Cases (1-50)</label>
-                        <input type="number" id="count" name="count" min="1" max="50" value="5">
-                    </div>
-
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" id="parallel" name="parallel">
-                            <label for="parallel" style="margin: 0;">Run tests in parallel</label>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" id="saveHtml" name="saveHtml">
-                            <label for="saveHtml" style="margin: 0;">Save HTML Results</label>
-                        </div>
-                    </div>
-
-                    <button type="submit" class="btn" id="submitBtn">
-                        🚀 Run Workflow Tests
-                    </button>
-                </form>
-
-                <div class="info-box" id="infoBox">
-                    <strong>Estimated:</strong> <span id="testCount">5</span> test(s) ×
-                    <span id="tierCount">1</span> tier(s) = <strong><span id="totalTests">5</span></strong> executions
                 </div>
-            </div>
 
-            <!-- Compass Mode -->
-            <div class="mode-content" id="compassMode">
-                <form id="compassTestForm">
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="compassCount">Number of Test Cases (1-15)</label>
-                        <input type="number" id="compassCount" name="count" min="1" max="15" value="5">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="compassCategory">Category Filter (Optional)</label>
-                        <select id="compassCategory" name="category">
-                            <option value="">All Categories</option>
-                            <option value="Low Readiness">Low Readiness</option>
-                            <option value="Medium Readiness">Medium Readiness</option>
-                            <option value="High Readiness">High Readiness</option>
-                            <option value="Mixed Readiness">Mixed Readiness</option>
+                        <label for="compassMode">Test Mode</label>
+                        <select id="compassMode" name="mode">
+                            <option value="sample">Sample (N tests)</option>
+                            <option value="full_industry">Full Industry (all tests)</option>
                         </select>
                     </div>
 
+                    <div class="form-group">
+                        <label for="compassCount">Number of Tests (when using Sample)</label>
+                        <input type="number" id="compassCount" name="count" min="1" max="90" value="5">
+                    </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="compassParallel">Max Parallel Tests (1-5)</label>
                         <input type="number" id="compassParallel" name="max_parallel" min="1" max="5" value="3">
                     </div>
 
-                    <div class="form-group" style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="checkbox" id="compassSaveHtml" name="saveHtml" checked>
-                        <label for="compassSaveHtml" style="margin: 0;">Save HTML Reports</label>
+                    <div class="form-group" style="display: flex; align-items: flex-end;">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="compassSaveHtml" name="saveHtml" checked>
+                            <label for="compassSaveHtml" style="margin: 0;">Save HTML Reports</label>
+                        </div>
                     </div>
-
-                    <button type="submit" class="btn" id="compassSubmitBtn">
-                        Run Compass Tests
-                    </button>
-                </form>
-
-                <div class="info-box">
-                    <strong>AI Readiness Compass Tests</strong><br>
-                    Tests varied company profiles with different readiness levels. Each test runs the full Compass pipeline including 3 research agents, scoring, and report generation.
                 </div>
+
+                <button type="submit" class="btn" id="compassSubmitBtn">
+                    🚀 Run Compass Tests
+                </button>
+            </form>
+
+            <div class="info-box">
+                <strong>AI Readiness Compass Tests</strong><br>
+                Test suite includes <strong>29 real companies</strong> (25 real + 4 placeholders) across 11 industries.<br>
+                Each test runs the complete Compass pipeline: Research → Scoring → Report Generation.<br>
+                <em>Select "Full Industry" mode to test all companies in a specific industry.</em>
             </div>
         </div>
 
@@ -404,7 +346,7 @@
 
         <div class="results-browser">
             <div class="browser-header">
-                <h3>HTML Results</h3>
+                <h3>📊 HTML Results</h3>
                 <div class="browser-actions">
                     <button id="refreshResults" class="btn-secondary">Refresh</button>
                     <button id="deleteAll" class="btn-danger">Delete All</button>
@@ -418,95 +360,12 @@
     </div>
 
     <script>
-        // Mode switching
-        const modeTabs = document.querySelectorAll('.mode-tab');
-        const modeContents = document.querySelectorAll('.mode-content');
-
-        modeTabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                const mode = tab.dataset.mode;
-
-                // Update active tab
-                modeTabs.forEach(t => t.classList.remove('active'));
-                tab.classList.add('active');
-
-                // Update active content
-                modeContents.forEach(c => c.classList.remove('active'));
-                document.getElementById(`${mode}Mode`).classList.add('active');
-            });
-        });
-
-        // Workflow Tests
-        const form = document.getElementById('testForm');
-        const tierSelect = document.getElementById('tier');
-        const countInput = document.getElementById('count');
-        const infoBox = document.getElementById('infoBox');
+        const compassForm = document.getElementById('compassTestForm');
         const results = document.getElementById('results');
         const resultsList = document.getElementById('resultsList');
-
-        function updateEstimate() {
-            const count = parseInt(countInput.value) || 1;
-            const tierCount = tierSelect.value === 'All Tiers (Comparison)' ? 3 : 1;
-            document.getElementById('testCount').textContent = count;
-            document.getElementById('tierCount').textContent = tierCount;
-            document.getElementById('totalTests').textContent = count * tierCount;
-        }
-
-        tierSelect.addEventListener('change', updateEstimate);
-        countInput.addEventListener('input', updateEstimate);
-
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.disabled = true;
-            submitBtn.textContent = '⏳ Running Tests...';
-
-            const formData = {
-                environment: document.getElementById('environment').value,
-                tier: document.getElementById('tier').value,
-                count: parseInt(countInput.value),
-                parallel: document.getElementById('parallel').checked,
-                save_html: document.getElementById('saveHtml').checked,
-            };
-
-            try {
-                const response = await fetch('/api/tests/run', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formData),
-                });
-
-                const data = await response.json();
-
-                results.classList.add('show');
-                resultsList.innerHTML = `
-                    <div class="result-item success">
-                        <strong>✅ Tests Initiated</strong><br>
-                        ${data.message}<br>
-                        <small>Tiers: ${data.tiers.join(', ')} | Environment: ${data.environment}</small>
-                    </div>
-                `;
-            } catch (error) {
-                results.classList.add('show');
-                resultsList.innerHTML = `
-                    <div class="result-item error">
-                        <strong>❌ Error</strong><br>
-                        ${error.message}
-                    </div>
-                `;
-            }
-
-            submitBtn.disabled = false;
-            submitBtn.textContent = '🚀 Run Workflow Tests';
-
-            // Refresh results browser after test completion
-            setTimeout(refreshHtmlResults, 2000);
-        });
-
-        // Compass Tests
-        const compassForm = document.getElementById('compassTestForm');
         let compassPollInterval = null;
 
+        // Compass Tests
         compassForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const compassSubmitBtn = document.getElementById('compassSubmitBtn');
@@ -514,8 +373,10 @@
             compassSubmitBtn.textContent = '⏳ Starting Compass Tests...';
 
             const formData = {
-                count: parseInt(document.getElementById('compassCount').value),
-                category: document.getElementById('compassCategory').value || null,
+                count: parseInt(document.getElementById('compassCount').value) || 5,
+                industry: document.getElementById('compassIndustry').value || null,
+                readiness: document.getElementById('compassReadiness').value || null,
+                mode: document.getElementById('compassMode').value,
                 max_parallel: parseInt(document.getElementById('compassParallel').value),
                 save_html: document.getElementById('compassSaveHtml').checked,
             };
@@ -537,9 +398,9 @@
                 results.classList.add('show');
                 resultsList.innerHTML = `
                     <div class="result-item success">
-                        <strong>Compass Tests Initiated</strong><br>
+                        <strong>✅ Compass Tests Initiated</strong><br>
                         ${data.message}<br>
-                        <small>Run ID: ${data.run_id} | Category: ${data.category || 'All'}</small>
+                        <small>Run ID: ${data.run_id} | Industry: ${data.industry || 'All'} | Readiness: ${data.readiness || 'All'} | Mode: ${data.mode}</small>
                         <div id="compassStatus" style="margin-top: 1rem; padding: 0.5rem; background: rgba(0,0,0,0.2); border-radius: 4px;">
                             Status: <span id="compassStatusText">Running...</span>
                         </div>
@@ -554,14 +415,14 @@
                 results.classList.add('show');
                 resultsList.innerHTML = `
                     <div class="result-item error">
-                        <strong>Error</strong><br>
+                        <strong>❌ Error</strong><br>
                         ${error.message}
                     </div>
                 `;
             }
 
             compassSubmitBtn.disabled = false;
-            compassSubmitBtn.textContent = '🧭 Run Compass Tests';
+            compassSubmitBtn.textContent = '🚀 Run Compass Tests';
         });
 
         async function pollCompassStatus(runId) {
@@ -611,6 +472,9 @@
                                 `).join('')}
                             </div>
                         `;
+
+                        // Refresh HTML results browser
+                        setTimeout(refreshHtmlResults, 2000);
                     } else if (data.status === 'failed') {
                         clearInterval(compassPollInterval);
                         statusText.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
