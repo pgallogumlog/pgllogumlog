@@ -210,6 +210,9 @@ The 90-day roadmap in this report provides a clear path forward. We recommend st
         """Render the complete report HTML."""
         try:
             template = self._env.get_template("report_base.html.j2")
+            # Extract citations from research for display
+            all_citations = research.get("_citations", []) if isinstance(research, dict) else []
+
             return template.render(
                 # Company info
                 company_name=request.company_name,
@@ -226,6 +229,7 @@ The 90-day roadmap in this report provides a clear path forward. We recommend st
                 avoid=avoid,
                 roadmap=roadmap,
                 research=research,
+                all_citations=all_citations,
                 # Meta
                 run_id=run_id,
                 generated_date=datetime.now().strftime("%B %d, %Y"),
