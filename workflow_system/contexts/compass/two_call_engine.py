@@ -49,6 +49,11 @@ from contexts.compass.validators import (
     CrossCallQAResult,
     CompassQASummary,
 )
+from contexts.compass.validators.research_quality_gate import (
+    ResearchQualityGate,
+    ResearchQualityResult,
+    ResearchFailedError,
+)
 
 if TYPE_CHECKING:
     from contexts.compass.sheets_logger import CompassQASheetsLogger
@@ -76,6 +81,17 @@ class AIProvider(Protocol):
         temperature: float = 0.0,
         max_tokens: int = 4096,
     ) -> dict:
+        ...
+
+    async def generate_json_with_web_search(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 8192,
+        max_searches: int = 15,
+        model: str | None = None,
+    ) -> tuple[dict, dict, list[dict]]:
+        """Generate JSON with Claude's native web search enabled."""
         ...
 
 
@@ -125,6 +141,10 @@ class TwoCallResult:
     cross_call_qa: Optional[CrossCallQAResult] = None
     qa_issues: list[str] = field(default_factory=list)
 
+    # Research quality gate results
+    research_quality: Optional[ResearchQualityResult] = None
+    citations: list[dict] = field(default_factory=list)
+
 
 class TwoCallCompassEngine:
     """
@@ -167,6 +187,9 @@ class TwoCallCompassEngine:
         self._call_2_validator = Call2Validator()
         self._cross_call_validator = CrossCallValidator()
 
+        # Initialize research quality gate (HARD blocker)
+        self._quality_gate = ResearchQualityGate()
+
     async def process(
         self,
         request: CompassRequest,
@@ -196,13 +219,68 @@ class TwoCallCompassEngine:
             logger.info("two_call_step", run_id=run_id, step="self_assessment")
             self_assessment_score = self._scorer.score(request.self_assessment)
 
-            # Step 2: CALL 1 - Deep Research
+            # Step 2: CALL 1 - Deep Research with REAL web search
             logger.info("two_call_step", run_id=run_id, step="call_1_research")
             start_call_1 = datetime.now()
-            research_findings, call_1_tokens = await self._call_1_deep_research(request)
+            research_findings, call_1_tokens, citations = await self._call_1_deep_research(request)
             call_1_duration = (datetime.now() - start_call_1).total_seconds() * 1000
 
-            # Step 2b: Validate Call 1 output
+            # Step 2b: QUALITY GATE - HARD blocker before proceeding
+            # This validates that real web research was performed
+            logger.info("two_call_step", run_id=run_id, step="quality_gate")
+            quality_result = await self._quality_gate.validate(
+                research_findings=research_findings,
+                citations=citations,
+                company_name=request.company_name,
+                industry=request.industry,
+            )
+
+            if not quality_result.passed:
+                # BLOCK - Do not proceed with synthesis or report generation
+                logger.error(
+                    "quality_gate_blocked",
+                    run_id=run_id,
+                    company_name=request.company_name,
+                    issues=quality_result.issues,
+                    verified_sources=quality_result.verified_source_count,
+                    unique_domains=quality_result.unique_domain_count,
+                )
+
+                # Cancel payment authorization (customer NOT charged)
+                if payment_intent_id and self._payment:
+                    try:
+                        await self._payment.cancel_payment(payment_intent_id)
+                        logger.info(
+                            "quality_gate_payment_cancelled",
+                            run_id=run_id,
+                            payment_intent_id=payment_intent_id,
+                        )
+                    except Exception as e:
+                        logger.error(
+                            "quality_gate_payment_cancel_failed",
+                            run_id=run_id,
+                            error=str(e),
+                        )
+
+                return TwoCallResult(
+                    report=None,
+                    research_findings=research_findings,
+                    qa_passed=False,
+                    error=f"Research insufficient: {'; '.join(quality_result.issues)}",
+                    qa_issues=quality_result.issues,
+                    research_quality=quality_result,
+                    citations=citations,
+                    call_1_tokens=call_1_tokens,
+                )
+
+            logger.info(
+                "quality_gate_passed",
+                run_id=run_id,
+                verified_sources=quality_result.verified_source_count,
+                unique_domains=quality_result.unique_domain_count,
+            )
+
+            # Step 2c: Validate Call 1 output (semantic checks)
             logger.info("two_call_step", run_id=run_id, step="validate_call_1")
             call_1_qa = self._call_1_validator.validate(
                 request=request,
@@ -402,6 +480,8 @@ class TwoCallCompassEngine:
                 call_2_qa=call_2_qa,
                 cross_call_qa=cross_call_qa,
                 qa_issues=all_qa_issues,
+                research_quality=quality_result,
+                citations=citations,
             )
 
             # Step 10: Log QA results to Google Sheets
@@ -469,15 +549,17 @@ class TwoCallCompassEngine:
                 error=str(e),
             )
 
-    async def _call_1_deep_research(self, request: CompassRequest) -> tuple[dict, int]:
+    async def _call_1_deep_research(
+        self, request: CompassRequest
+    ) -> tuple[dict, int, list[dict]]:
         """
-        CALL 1: Deep Research with web search.
+        CALL 1: Deep Research with REAL web search.
 
         Gathers comprehensive data about the company, industry, and
-        implementation patterns. Uses Claude's native web search.
+        implementation patterns. Uses Claude's native web_search_20250305 tool.
 
         Returns:
-            Tuple of (research_findings, total_tokens)
+            Tuple of (research_findings, total_tokens, citations)
         """
         user_prompt = DEEP_RESEARCH_USER_TEMPLATE.format(
             company_name=request.company_name,
@@ -492,13 +574,13 @@ class TwoCallCompassEngine:
         )
 
         try:
-            # Use generate_json_with_metadata for structured output + token tracking
-            # Low temperature (0.2) for factual, grounded research
-            research, metadata = await self._ai.generate_json_with_metadata(
+            # Use generate_json_with_web_search for REAL web research
+            # This enables Claude's native web search tool
+            research, metadata, citations = await self._ai.generate_json_with_web_search(
                 prompt=user_prompt,
                 system_prompt=DEEP_RESEARCH_SYSTEM,
-                temperature=DEEP_RESEARCH_TEMPERATURE,  # 0.2 - factual, low hallucination
                 max_tokens=8192,  # Allow comprehensive research
+                max_searches=15,  # Allow up to 15 web searches
             )
 
             # Calculate total tokens from metadata
@@ -506,20 +588,31 @@ class TwoCallCompassEngine:
             output_tokens = metadata.get("output_tokens", 0)
             total_tokens = input_tokens + output_tokens
 
+            # Inject citations into research findings
+            if "_citations" not in research:
+                research["_citations"] = citations
+            if "research_metadata" not in research:
+                research["research_metadata"] = {}
+            research["research_metadata"]["citation_count"] = len(citations)
+            research["research_metadata"]["web_searches_performed"] = metadata.get(
+                "web_searches_performed", len(citations)
+            )
+
             logger.info(
                 "call_1_research_completed",
                 company_name=request.company_name,
                 total_findings=research.get("research_metadata", {}).get("total_findings", 0),
-                sources_consulted=research.get("research_metadata", {}).get("sources_consulted", 0),
+                sources_consulted=len(citations),
+                citation_count=len(citations),
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
             )
 
-            return research, total_tokens
+            return research, total_tokens, citations
 
         except Exception as e:
             logger.error("call_1_research_failed", error=str(e))
-            # Return minimal structure on failure
+            # Return minimal structure on failure with empty citations
             return {
                 "company_analysis": {},
                 "industry_intelligence": {},
@@ -528,9 +621,10 @@ class TwoCallCompassEngine:
                     "total_findings": 0,
                     "high_confidence_findings": 0,
                     "sources_consulted": 0,
+                    "citation_count": 0,
                     "research_gaps": [f"Research failed: {str(e)}"],
                 },
-            }, 0
+            }, 0, []
 
     async def _call_2_synthesis(
         self,

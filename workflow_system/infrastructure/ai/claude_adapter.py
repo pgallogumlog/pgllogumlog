@@ -637,3 +637,131 @@ class ClaudeAdapter:
             max_iterations=max_iterations,
         )
         return "", messages
+
+    async def generate_json_with_web_search(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 8192,
+        max_searches: int = 15,
+        model: str | None = None,
+    ) -> tuple[dict, dict[str, Any], list[dict]]:
+        """
+        Generate JSON with Claude's native web search enabled.
+
+        This method enables real web research by using Claude's built-in
+        web_search_20250305 tool. Returns both the parsed JSON and the
+        citations from web search results.
+
+        Args:
+            prompt: The user message/prompt (should request JSON)
+            system_prompt: Optional system instructions
+            max_tokens: Maximum response length
+            max_searches: Maximum number of web searches Claude can perform
+            model: Model to use (defaults to instance default)
+
+        Returns:
+            Tuple of (parsed_json, metadata, citations)
+            - parsed_json: The structured JSON response
+            - metadata: Token usage and model info
+            - citations: List of {url, title, snippet, source} from web search
+        """
+        use_model = model or self._default_model
+
+        # Configure Claude's native web search tool
+        tools = [{
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": max_searches,
+        }]
+
+        # Enhance system prompt to request JSON
+        json_system = system_prompt or ""
+        if "json" not in json_system.lower():
+            json_system += "\n\nRespond with valid JSON only. No markdown, no explanation."
+
+        logger.info(
+            "claude_web_search_request",
+            model=use_model,
+            max_tokens=max_tokens,
+            max_searches=max_searches,
+            prompt_length=len(prompt),
+        )
+
+        # Retry loop with exponential backoff
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = await self._client.messages.create(
+                    model=use_model,
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                    system=json_system,
+                    tools=tools,
+                )
+
+                # Extract text content and citations from response
+                text_content = ""
+                citations: list[dict] = []
+
+                for block in response.content:
+                    # Text blocks contain the JSON response
+                    if hasattr(block, "text"):
+                        text_content += block.text
+                    # Web search tool results contain citations
+                    elif hasattr(block, "type") and block.type == "web_search_tool_result":
+                        search_results = getattr(block, "search_results", [])
+                        for result in search_results:
+                            citations.append({
+                                "title": getattr(result, "title", ""),
+                                "url": getattr(result, "url", ""),
+                                "snippet": getattr(result, "snippet", "")[:500],
+                                "source": "claude_web_search",
+                            })
+
+                # Parse the JSON response
+                parsed = self._parse_json_response(text_content)
+
+                # Build metadata
+                metadata = {
+                    "input_tokens": response.usage.input_tokens,
+                    "output_tokens": response.usage.output_tokens,
+                    "stop_reason": response.stop_reason,
+                    "model": response.model,
+                    "web_searches_performed": len(citations),
+                    "raw_response": text_content,
+                }
+
+                logger.info(
+                    "claude_web_search_response",
+                    response_length=len(text_content),
+                    citation_count=len(citations),
+                    stop_reason=response.stop_reason,
+                    usage_input=response.usage.input_tokens,
+                    usage_output=response.usage.output_tokens,
+                )
+
+                return parsed, metadata, citations
+
+            except anthropic.RateLimitError as e:
+                last_error = e
+                delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY)
+                logger.warning(
+                    "claude_web_search_rate_limited",
+                    attempt=attempt + 1,
+                    max_retries=MAX_RETRIES,
+                    delay_seconds=delay,
+                )
+                await asyncio.sleep(delay)
+
+            except anthropic.APIError as e:
+                logger.error("claude_web_search_api_error", error=str(e))
+                raise
+
+        # All retries exhausted
+        logger.error(
+            "claude_web_search_rate_limit_exhausted",
+            max_retries=MAX_RETRIES,
+            error=str(last_error),
+        )
+        raise last_error

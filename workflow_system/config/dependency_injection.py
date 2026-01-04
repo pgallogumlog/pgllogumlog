@@ -85,6 +85,23 @@ class AIProvider(Protocol):
         """Generate multiple responses in parallel with metadata."""
         ...
 
+    async def generate_json_with_web_search(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 8192,
+        max_searches: int = 15,
+        model: str | None = None,
+    ) -> tuple[dict, dict, list[dict]]:
+        """
+        Generate JSON with Claude's native web search enabled.
+
+        Returns:
+            Tuple of (parsed_json, metadata, citations)
+            - citations: List of {url, title, snippet, source}
+        """
+        ...
+
 
 @runtime_checkable
 class EmailClient(Protocol):

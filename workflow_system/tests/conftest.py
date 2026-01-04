@@ -190,6 +190,89 @@ The answer is Customer Support Bot"""
 
         return results
 
+    async def generate_json_with_web_search(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        max_tokens: int = 8192,
+        max_searches: int = 15,
+        model: str | None = None,
+    ) -> tuple[dict, dict, list[dict]]:
+        """
+        Mock generate_json with web search for testing.
+
+        Returns a tuple of (parsed_json, metadata, citations) where
+        citations simulate real web search results with verifiable URLs.
+        """
+        import json
+
+        # Generate mock JSON response
+        response = await self.generate_json(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            temperature=0.0,
+            max_tokens=max_tokens,
+            model=model,
+        )
+
+        raw_response = json.dumps(response)
+
+        # Build metadata
+        metadata = {
+            "model": model or "claude-sonnet-4-20250514",
+            "input_tokens": len(prompt) // 4,
+            "output_tokens": len(raw_response) // 4,
+            "stop_reason": "end_turn",
+            "web_searches_performed": max_searches,
+            "raw_response": raw_response,
+        }
+
+        # Generate mock citations (simulating real web search results)
+        # Use real domains so URL verification can pass in tests if needed
+        citations = [
+            {
+                "title": "McKinsey AI Report 2025",
+                "url": "https://www.mckinsey.com/business-functions/mckinsey-digital/our-insights/ai-adoption-report",
+                "snippet": "AI adoption in enterprises increased 47% in 2024...",
+                "source": "claude_web_search",
+            },
+            {
+                "title": "Gartner AI Trends",
+                "url": "https://www.gartner.com/en/newsroom/press-releases/ai-trends",
+                "snippet": "By 2025, 75% of enterprises will shift from piloting to operationalizing AI...",
+                "source": "claude_web_search",
+            },
+            {
+                "title": "Industry Digital Transformation",
+                "url": "https://www.forbes.com/digital-transformation",
+                "snippet": "Digital transformation spending reached $2.3 trillion globally...",
+                "source": "claude_web_search",
+            },
+            {
+                "title": "AI Implementation Best Practices",
+                "url": "https://hbr.org/ai-implementation-guide",
+                "snippet": "Companies that invest in AI change management see 3x higher ROI...",
+                "source": "claude_web_search",
+            },
+            {
+                "title": "Enterprise AI Case Studies",
+                "url": "https://www.microsoft.com/en-us/ai/customer-stories",
+                "snippet": "Learn how businesses are transforming with AI solutions...",
+                "source": "claude_web_search",
+            },
+        ]
+
+        # Extend citations to meet minimum requirements (10+)
+        for i in range(5, max_searches):
+            citations.append({
+                "title": f"AI Research Finding {i + 1}",
+                "url": f"https://research.example{i}.com/ai-study",
+                "snippet": f"Research finding {i + 1} about AI implementation...",
+                "source": "claude_web_search",
+            })
+
+        return response, metadata, citations[:max_searches]
+
 
 class MockEmailClient:
     """Mock email client for testing."""
