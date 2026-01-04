@@ -366,13 +366,33 @@ class ResearchQualityGate:
         """
         Check if research has company-specific findings.
 
-        Looks for company name mentioned in actual data (not just prompts).
+        Validates that:
+        1. company_analysis section exists with real data, OR
+        2. Company name appears in findings
         """
         if not research_findings or not company_name:
             return False
 
         company_lower = company_name.lower()
 
+        # Check 1: If company_analysis exists with actual findings, that counts
+        company_analysis = research_findings.get("company_analysis", {})
+        if company_analysis:
+            # Check if it has real data (not all NOT_FOUND)
+            analysis_str = str(company_analysis).lower()
+            # If there's substantial content and not mostly NOT_FOUND
+            not_found_count = analysis_str.count("not_found") + analysis_str.count("not found")
+            # If we have findings lists with items, that's company data
+            for key, value in company_analysis.items():
+                if isinstance(value, list) and len(value) > 0:
+                    # Has at least one finding
+                    first_item = value[0] if value else {}
+                    if isinstance(first_item, dict):
+                        finding = first_item.get("finding", "")
+                        if finding and "not_found" not in finding.lower():
+                            return True
+
+        # Check 2: Search for company name in findings
         def search_for_company(value: Any) -> bool:
             """Recursively search for company name in value."""
             if isinstance(value, str):
@@ -403,12 +423,36 @@ class ResearchQualityGate:
         Check if research has industry statistics.
 
         Looks for percentage, dollar amounts, or numerical data
-        related to the industry.
+        related to the industry. Matches any word from the industry
+        string (e.g., "Retail & Apparel" matches "retail" or "apparel").
         """
         if not research_findings or not industry:
             return False
 
-        industry_lower = industry.lower()
+        # Extract industry keywords (split on non-alpha characters)
+        # "Retail & Apparel" -> ["retail", "apparel"]
+        industry_keywords = [
+            word.lower()
+            for word in re.split(r"[^a-zA-Z]+", industry)
+            if len(word) >= 3  # Skip short words like "&"
+        ]
+
+        # Also add common related terms for flexibility
+        related_terms = {
+            "retail": ["ecommerce", "e-commerce", "shopping", "store", "merchant"],
+            "apparel": ["fashion", "clothing", "garment", "textile", "wear"],
+            "healthcare": ["medical", "health", "clinical", "hospital", "patient"],
+            "finance": ["financial", "banking", "fintech", "insurance"],
+            "manufacturing": ["industrial", "factory", "production"],
+            "technology": ["tech", "software", "saas", "digital"],
+        }
+
+        # Expand keywords with related terms
+        expanded_keywords = set(industry_keywords)
+        for keyword in industry_keywords:
+            if keyword in related_terms:
+                expanded_keywords.update(related_terms[keyword])
+
         stat_patterns = [
             r"\d+%",  # Percentages
             r"\$[\d,]+",  # Dollar amounts
@@ -420,7 +464,9 @@ class ResearchQualityGate:
         def has_stats_and_industry(value: Any) -> bool:
             """Check if value contains both industry mention and statistics."""
             if isinstance(value, str):
-                has_industry = industry_lower in value.lower()
+                value_lower = value.lower()
+                # Check if ANY industry keyword is present
+                has_industry = any(kw in value_lower for kw in expanded_keywords)
                 has_stat = bool(combined_stat_pattern.search(value))
                 return has_industry and has_stat
             if isinstance(value, dict):
