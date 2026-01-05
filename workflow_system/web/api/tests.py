@@ -11,7 +11,6 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, Field
 
 from config import get_container
-from contexts.testing.compass_test_cases import COMPASS_TEST_CASES, get_compass_test_cases
 from contexts.testing.compass_test_loader import CompassTestLoader
 from contexts.testing.compass_orchestrator import CompassTestOrchestrator
 
