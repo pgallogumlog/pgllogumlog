@@ -10,7 +10,7 @@ Premium $497 strategic report with:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 
 @dataclass
@@ -158,6 +158,8 @@ class CompassReport:
     html_content: str  # Rendered report HTML
     timestamp: datetime = field(default_factory=datetime.now)
 
+    qa_report: Optional["CompassQAReport"] = None  # QA validation results
+
     def to_dict(self) -> dict:
         """Convert to dictionary for logging/serialization."""
         return {
@@ -171,4 +173,5 @@ class CompassReport:
             },
             "priority_count": len(self.priorities),
             "avoid_count": len(self.avoid),
+            "qa_report": self.qa_report.to_dict() if self.qa_report else None,
         }

@@ -57,6 +57,8 @@ from contexts.compass.validators.research_quality_gate import (
 
 if TYPE_CHECKING:
     from contexts.compass.sheets_logger import CompassQASheetsLogger
+    from contexts.compass.qa.orchestrator import CompassQAOrchestrator
+    from contexts.compass.qa.sheets_logger import CompassQASheetsLogger as QASheetsLogger
 
 logger = structlog.get_logger()
 
@@ -171,12 +173,16 @@ class TwoCallCompassEngine:
         email_client: Optional[EmailClient] = None,
         sheets_logger: Optional[CompassQASheetsLogger] = None,
         enable_web_search: bool = True,
+        enable_post_generation_qa: bool = False,
+        qa_sheets_logger: Optional["QASheetsLogger"] = None,
     ):
         self._ai = ai_provider
         self._payment = payment_client
         self._email = email_client
         self._sheets_logger = sheets_logger
         self._enable_web_search = enable_web_search
+        self._enable_post_generation_qa = enable_post_generation_qa
+        self._qa_sheets_logger = qa_sheets_logger
 
         # Initialize sub-components
         self._scorer = SelfAssessmentScorer()
@@ -189,6 +195,13 @@ class TwoCallCompassEngine:
 
         # Initialize research quality gate (HARD blocker)
         self._quality_gate = ResearchQualityGate()
+
+        # Initialize post-generation QA orchestrator (Phase 1 MVP)
+        if self._enable_post_generation_qa:
+            from contexts.compass.qa.orchestrator import CompassQAOrchestrator
+            self._qa_orchestrator = CompassQAOrchestrator(ai_provider)
+        else:
+            self._qa_orchestrator = None
 
     async def process(
         self,
@@ -457,6 +470,35 @@ class TwoCallCompassEngine:
                 roadmap=roadmap,
                 run_id=run_id,
             )
+
+            # Step 7.5: Post-Generation QA (Phase 1 MVP - optional)
+            if self._qa_orchestrator:
+                logger.info("two_call_step", run_id=run_id, step="post_generation_qa")
+                try:
+                    qa_report = await self._qa_orchestrator.review(
+                        run_id=run_id,
+                        request=request,
+                        final_report_html=report.html_content,
+                    )
+                    report.qa_report = qa_report
+
+                    # Log to Google Sheets if logger available
+                    if self._qa_sheets_logger:
+                        await self._qa_sheets_logger.log_qa_report(qa_report)
+
+                    logger.info(
+                        "post_generation_qa_completed",
+                        run_id=run_id,
+                        overall_score=qa_report.overall_score,
+                        passed=qa_report.passed,
+                    )
+                except Exception as e:
+                    logger.error(
+                        "post_generation_qa_failed",
+                        run_id=run_id,
+                        error=str(e),
+                    )
+                    # Don't fail the whole report if QA fails
 
             # Step 8: Aggregate QA validation
             logger.info("two_call_step", run_id=run_id, step="qa_validation")
