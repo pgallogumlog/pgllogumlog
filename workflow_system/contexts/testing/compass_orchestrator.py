@@ -21,7 +21,8 @@ from config.dependency_injection import AIProvider, EmailClient
 from contexts.compass.models import CompassRequest, SelfAssessment
 from contexts.compass.two_call_engine import TwoCallCompassEngine, TwoCallResult
 from contexts.compass.sheets_logger import CompassQASheetsLogger
-from contexts.testing.compass_test_cases import CompassTestCase, get_compass_test_cases
+from contexts.testing.compass_test_cases import CompassTestCase
+from contexts.testing.compass_test_loader import CompassTestLoader
 
 logger = structlog.get_logger()
 
@@ -154,12 +155,12 @@ class CompassTestOrchestrator:
 
         # Get test cases - prefer explicit test_cases parameter
         if test_cases is None:
-            # Fallback to old count/category parameters for backwards compatibility
+            # Load from JSON test suite (29 test cases with real companies)
+            loader = CompassTestLoader()
             if category:
-                from contexts.testing.compass_test_cases import get_compass_test_cases_by_category
-                test_cases = get_compass_test_cases_by_category(category)[:count or 15]
+                test_cases = loader.filter_by_readiness(category)[:count or 15]
             else:
-                test_cases = get_compass_test_cases(count or 5)
+                test_cases = loader.load_all()[:count or 5]
 
         logger.info(
             "compass_test_suite_started",
