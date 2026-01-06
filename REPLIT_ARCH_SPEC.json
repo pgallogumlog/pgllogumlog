@@ -1,0 +1,802 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "meta": {
+    "name": "AI Readiness Compass - Replit Architecture Specification",
+    "version": "1.0.0",
+    "generated": "2026-01-06",
+    "purpose": "Blueprint for AI-assisted implementation on Replit platform",
+    "source_architecture": "Python/FastAPI → Node.js/React migration",
+    "product_price": 497,
+    "currency": "USD"
+  },
+
+  "system_architecture": {
+    "overview": {
+      "pattern": "Full-stack monorepo with API-first design",
+      "deployment": "Replit Deployments with autoscale",
+      "database": "Replit PostgreSQL (managed)",
+      "runtime": "Node.js 20 LTS"
+    },
+
+    "frontend": {
+      "framework": "React 18",
+      "build_tool": "Vite",
+      "styling": "Tailwind CSS",
+      "state_management": "Zustand",
+      "form_handling": "React Hook Form + Zod",
+      "http_client": "TanStack Query (React Query)",
+      "routing": "React Router v6",
+      "payment_ui": "@stripe/react-stripe-js",
+
+      "directory_structure": {
+        "src/": {
+          "components/": {
+            "common/": "Reusable UI components (Button, Input, Card, Modal)",
+            "compass/": "Compass-specific components",
+            "layout/": "App shell, navigation, footer"
+          },
+          "pages/": {
+            "Home.tsx": "Landing page with value proposition",
+            "Assessment.tsx": "Multi-step assessment form",
+            "Payment.tsx": "Stripe checkout integration",
+            "Report.tsx": "Report display and download",
+            "Status.tsx": "Processing status page"
+          },
+          "hooks/": {
+            "useCompassSubmission.ts": "Form submission logic",
+            "usePaymentIntent.ts": "Stripe payment flow",
+            "useReportStatus.ts": "Polling for report completion"
+          },
+          "stores/": {
+            "assessmentStore.ts": "Multi-step form state",
+            "userStore.ts": "User session state"
+          },
+          "lib/": {
+            "api.ts": "API client configuration",
+            "validation.ts": "Zod schemas matching backend"
+          },
+          "types/": "TypeScript interfaces matching API contracts"
+        }
+      },
+
+      "key_components": [
+        {
+          "name": "AssessmentWizard",
+          "purpose": "Multi-step form collecting company info and self-assessment",
+          "steps": [
+            "CompanyInfo (name, website, industry, size)",
+            "SelfAssessment (3 questions, 1-5 scale each)",
+            "PainPoint (description of challenge)",
+            "ContactInfo (email, name)",
+            "PaymentStep (Stripe Elements)"
+          ]
+        },
+        {
+          "name": "ReportViewer",
+          "purpose": "Renders the premium HTML report with print/download options",
+          "features": ["PDF export", "Section navigation", "Citation links"]
+        },
+        {
+          "name": "ProcessingStatus",
+          "purpose": "Real-time status updates during report generation",
+          "states": ["PENDING", "RESEARCHING", "SYNTHESIZING", "VALIDATING", "COMPLETE", "FAILED"]
+        }
+      ]
+    },
+
+    "backend": {
+      "framework": "Express.js with TypeScript",
+      "orm": "Prisma",
+      "validation": "Zod",
+      "authentication": "None (stateless, payment-gated)",
+      "job_queue": "BullMQ with Redis (Replit KeyValue store)",
+      "logging": "Pino (structured JSON logs)",
+      "api_style": "REST with OpenAPI 3.0 spec",
+
+      "directory_structure": {
+        "src/": {
+          "index.ts": "Express app entry point",
+          "config/": {
+            "env.ts": "Environment variable validation with Zod",
+            "database.ts": "Prisma client initialization",
+            "redis.ts": "Redis/KeyValue connection",
+            "stripe.ts": "Stripe SDK initialization",
+            "anthropic.ts": "Claude SDK initialization"
+          },
+          "routes/": {
+            "health.ts": "GET /api/health",
+            "compass.ts": "Compass submission endpoints",
+            "webhooks.ts": "Stripe webhook handlers"
+          },
+          "controllers/": {
+            "CompassController.ts": "Request handling and response formatting"
+          },
+          "services/": {
+            "CompassService.ts": "Orchestrates the two-call engine",
+            "ResearchService.ts": "Call 1: Deep research with web search",
+            "SynthesisService.ts": "Call 2: Strategic synthesis",
+            "ScoringService.ts": "Self-assessment and hybrid scoring",
+            "QualityGateService.ts": "Research quality validation",
+            "PaymentService.ts": "Stripe payment operations",
+            "EmailService.ts": "Report delivery via email",
+            "ReportGeneratorService.ts": "HTML report generation"
+          },
+          "validators/": {
+            "Call1Validator.ts": "Research output validation",
+            "Call2Validator.ts": "Synthesis output validation",
+            "CrossCallValidator.ts": "Research-to-synthesis coherence",
+            "ResearchQualityGate.ts": "HARD blocker for quality"
+          },
+          "jobs/": {
+            "CompassProcessingJob.ts": "Background job for report generation"
+          },
+          "lib/": {
+            "claude.ts": "Claude API wrapper with web search",
+            "prompts.ts": "AI prompt templates"
+          },
+          "types/": "TypeScript interfaces and Zod schemas",
+          "middleware/": {
+            "errorHandler.ts": "Global error handling",
+            "requestLogger.ts": "Request/response logging",
+            "rateLimiter.ts": "Rate limiting middleware"
+          }
+        },
+        "prisma/": {
+          "schema.prisma": "Database schema definition",
+          "migrations/": "Database migration files"
+        }
+      },
+
+      "api_endpoints": [
+        {
+          "method": "POST",
+          "path": "/api/compass/payment-intent",
+          "purpose": "Create Stripe PaymentIntent with manual capture",
+          "request": { "email": "string" },
+          "response": { "clientSecret": "string", "paymentIntentId": "string" }
+        },
+        {
+          "method": "POST",
+          "path": "/api/compass/submit",
+          "purpose": "Submit assessment and start processing",
+          "request": "CompassSubmissionRequest",
+          "response": { "runId": "string", "status": "PENDING" }
+        },
+        {
+          "method": "GET",
+          "path": "/api/compass/status/:runId",
+          "purpose": "Check processing status",
+          "response": { "status": "string", "progress": "number", "error?": "string" }
+        },
+        {
+          "method": "GET",
+          "path": "/api/compass/report/:runId",
+          "purpose": "Retrieve completed report",
+          "response": "CompassReport (HTML content included)"
+        },
+        {
+          "method": "POST",
+          "path": "/api/webhooks/stripe",
+          "purpose": "Handle Stripe webhook events",
+          "events": ["payment_intent.succeeded", "payment_intent.payment_failed"]
+        },
+        {
+          "method": "GET",
+          "path": "/api/health",
+          "purpose": "Health check for Replit deployments",
+          "response": { "status": "ok", "timestamp": "ISO8601" }
+        }
+      ]
+    },
+
+    "monorepo_structure": {
+      "root": {
+        ".replit": "Replit configuration",
+        "replit.nix": "Nix environment (Node.js, PostgreSQL client)",
+        "package.json": "Root package.json with workspaces",
+        "turbo.json": "Turborepo configuration (optional)",
+        "packages/": {
+          "frontend/": "React application",
+          "backend/": "Express API server",
+          "shared/": "Shared types and validation schemas"
+        }
+      }
+    }
+  },
+
+  "database_requirements": {
+    "provider": "Replit PostgreSQL",
+    "orm": "Prisma",
+    "connection": "DATABASE_URL from Replit Secrets",
+
+    "schema": {
+      "models": [
+        {
+          "name": "CompassSubmission",
+          "purpose": "Stores customer submissions and processing state",
+          "fields": {
+            "id": { "type": "UUID", "primary": true, "default": "uuid_generate_v4()" },
+            "runId": { "type": "VARCHAR(36)", "unique": true, "index": true },
+            "status": { "type": "ENUM", "values": ["PENDING", "RESEARCHING", "SYNTHESIZING", "VALIDATING", "COMPLETE", "FAILED"] },
+            "companyName": { "type": "VARCHAR(255)", "nullable": false },
+            "website": { "type": "VARCHAR(500)", "nullable": false },
+            "industry": { "type": "VARCHAR(100)", "nullable": false },
+            "companySize": { "type": "VARCHAR(50)", "nullable": false },
+            "painPoint": { "type": "VARCHAR(200)", "nullable": false },
+            "description": { "type": "TEXT", "nullable": false },
+            "email": { "type": "VARCHAR(255)", "nullable": false },
+            "contactName": { "type": "VARCHAR(100)", "nullable": false },
+            "paymentIntentId": { "type": "VARCHAR(100)", "nullable": true },
+            "paymentCaptured": { "type": "BOOLEAN", "default": false },
+            "emailSent": { "type": "BOOLEAN", "default": false },
+            "createdAt": { "type": "TIMESTAMP", "default": "NOW()" },
+            "updatedAt": { "type": "TIMESTAMP", "default": "NOW()", "onUpdate": "NOW()" },
+            "completedAt": { "type": "TIMESTAMP", "nullable": true }
+          },
+          "indexes": [
+            { "columns": ["status"], "name": "idx_submission_status" },
+            { "columns": ["email"], "name": "idx_submission_email" },
+            { "columns": ["createdAt"], "name": "idx_submission_created" }
+          ]
+        },
+        {
+          "name": "SelfAssessment",
+          "purpose": "Stores the 3-question self-assessment (1:1 with CompassSubmission)",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "submissionId": { "type": "UUID", "references": "CompassSubmission.id", "onDelete": "CASCADE" },
+            "dataMaturity": { "type": "SMALLINT", "check": "dataMaturity >= 1 AND dataMaturity <= 5" },
+            "automationExperience": { "type": "SMALLINT", "check": "automationExperience >= 1 AND automationExperience <= 5" },
+            "changeReadiness": { "type": "SMALLINT", "check": "changeReadiness >= 1 AND changeReadiness <= 5" },
+            "calculatedScore": { "type": "DECIMAL(5,2)", "nullable": true, "comment": "Weighted score 20-100" }
+          }
+        },
+        {
+          "name": "CompassReport",
+          "purpose": "Stores the generated report and scores",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "submissionId": { "type": "UUID", "references": "CompassSubmission.id", "onDelete": "CASCADE", "unique": true },
+            "selfAssessmentScore": { "type": "DECIMAL(5,2)" },
+            "researchScore": { "type": "DECIMAL(5,2)" },
+            "overallScore": { "type": "DECIMAL(5,2)" },
+            "readinessLevel": { "type": "VARCHAR(20)", "comment": "Beginner/Developing/Established/Advanced/Leading" },
+            "htmlContent": { "type": "TEXT", "nullable": false, "comment": "Rendered HTML report" },
+            "researchFindings": { "type": "JSONB", "nullable": true, "comment": "Raw Call 1 output" },
+            "synthesisOutput": { "type": "JSONB", "nullable": true, "comment": "Raw Call 2 output" },
+            "citations": { "type": "JSONB", "default": "[]", "comment": "Web search citations array" },
+            "createdAt": { "type": "TIMESTAMP", "default": "NOW()" }
+          }
+        },
+        {
+          "name": "BusinessPriority",
+          "purpose": "Top 3 priorities with solutions (1:N with CompassReport)",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "reportId": { "type": "UUID", "references": "CompassReport.id", "onDelete": "CASCADE" },
+            "rank": { "type": "SMALLINT", "check": "rank >= 1 AND rank <= 3" },
+            "problemName": { "type": "VARCHAR(200)" },
+            "problemDescription": { "type": "TEXT" },
+            "solutionName": { "type": "VARCHAR(200)", "comment": "Specific product name" },
+            "solutionVendor": { "type": "VARCHAR(100)" },
+            "solutionApproachType": { "type": "VARCHAR(50)", "comment": "RAG, Agentic, Automation, etc." },
+            "solutionDescription": { "type": "TEXT" },
+            "solutionWhyFits": { "type": "TEXT" },
+            "solutionFeatures": { "type": "JSONB", "default": "[]" },
+            "solutionIntegrations": { "type": "JSONB", "default": "[]" },
+            "pricingModel": { "type": "VARCHAR(50)" },
+            "pricingMonthly": { "type": "VARCHAR(100)" },
+            "pricingImplementation": { "type": "VARCHAR(100)" },
+            "expectedImpact": { "type": "VARCHAR(200)" },
+            "complexity": { "type": "VARCHAR(20)" },
+            "timeToValue": { "type": "VARCHAR(50)" }
+          },
+          "indexes": [
+            { "columns": ["reportId", "rank"], "unique": true }
+          ]
+        },
+        {
+          "name": "RoadmapPhase",
+          "purpose": "90-day implementation roadmap (1:N with CompassReport)",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "reportId": { "type": "UUID", "references": "CompassReport.id", "onDelete": "CASCADE" },
+            "month": { "type": "SMALLINT", "check": "month >= 1 AND month <= 3" },
+            "focus": { "type": "VARCHAR(200)" },
+            "specificDeliverables": { "type": "JSONB", "default": "[]" },
+            "toolsToImplement": { "type": "JSONB", "default": "[]" },
+            "budget": { "type": "VARCHAR(100)" },
+            "decisionGate": { "type": "TEXT" }
+          },
+          "indexes": [
+            { "columns": ["reportId", "month"], "unique": true }
+          ]
+        },
+        {
+          "name": "AntiRecommendation",
+          "purpose": "What to avoid (1:N with CompassReport)",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "reportId": { "type": "UUID", "references": "CompassReport.id", "onDelete": "CASCADE" },
+            "name": { "type": "VARCHAR(200)" },
+            "vendorExamples": { "type": "JSONB", "default": "[]" },
+            "whyTempting": { "type": "TEXT" },
+            "whyWrongForThem": { "type": "TEXT" },
+            "costOfMistake": { "type": "TEXT" }
+          }
+        },
+        {
+          "name": "QAValidation",
+          "purpose": "QA results for each submission",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "submissionId": { "type": "UUID", "references": "CompassSubmission.id", "onDelete": "CASCADE", "unique": true },
+            "overallPassed": { "type": "BOOLEAN" },
+            "call1Passed": { "type": "BOOLEAN" },
+            "call1Score": { "type": "SMALLINT" },
+            "call2Passed": { "type": "BOOLEAN" },
+            "call2Score": { "type": "SMALLINT" },
+            "crossCallPassed": { "type": "BOOLEAN" },
+            "crossCallScore": { "type": "SMALLINT" },
+            "researchUsedPercent": { "type": "DECIMAL(5,2)" },
+            "verifiedSourceCount": { "type": "SMALLINT" },
+            "uniqueDomainCount": { "type": "SMALLINT" },
+            "notFoundRatio": { "type": "DECIMAL(5,4)" },
+            "hasCompanyData": { "type": "BOOLEAN" },
+            "hasIndustryStats": { "type": "BOOLEAN" },
+            "issues": { "type": "JSONB", "default": "[]" },
+            "call1Tokens": { "type": "INTEGER" },
+            "call2Tokens": { "type": "INTEGER" },
+            "totalDurationMs": { "type": "INTEGER" },
+            "createdAt": { "type": "TIMESTAMP", "default": "NOW()" }
+          }
+        },
+        {
+          "name": "AuditLog",
+          "purpose": "Track all system events for debugging and compliance",
+          "fields": {
+            "id": { "type": "UUID", "primary": true },
+            "submissionId": { "type": "UUID", "references": "CompassSubmission.id", "onDelete": "SET NULL", "nullable": true },
+            "eventType": { "type": "VARCHAR(50)", "comment": "SUBMISSION_CREATED, RESEARCH_STARTED, PAYMENT_CAPTURED, etc." },
+            "eventData": { "type": "JSONB" },
+            "createdAt": { "type": "TIMESTAMP", "default": "NOW()" }
+          },
+          "indexes": [
+            { "columns": ["eventType", "createdAt"], "name": "idx_audit_event_time" },
+            { "columns": ["submissionId"], "name": "idx_audit_submission" }
+          ]
+        }
+      ],
+
+      "prisma_schema": "// Prisma schema - copy to prisma/schema.prisma\n\ngenerator client {\n  provider = \"prisma-client-js\"\n}\n\ndatasource db {\n  provider = \"postgresql\"\n  url      = env(\"DATABASE_URL\")\n}\n\nenum SubmissionStatus {\n  PENDING\n  RESEARCHING\n  SYNTHESIZING\n  VALIDATING\n  COMPLETE\n  FAILED\n}\n\nmodel CompassSubmission {\n  id               String           @id @default(uuid())\n  runId            String           @unique\n  status           SubmissionStatus @default(PENDING)\n  companyName      String\n  website          String\n  industry         String\n  companySize      String\n  painPoint        String\n  description      String\n  email            String\n  contactName      String\n  paymentIntentId  String?\n  paymentCaptured  Boolean          @default(false)\n  emailSent        Boolean          @default(false)\n  createdAt        DateTime         @default(now())\n  updatedAt        DateTime         @updatedAt\n  completedAt      DateTime?\n  \n  selfAssessment   SelfAssessment?\n  report           CompassReport?\n  qaValidation     QAValidation?\n  auditLogs        AuditLog[]\n  \n  @@index([status])\n  @@index([email])\n  @@index([createdAt])\n}\n\nmodel SelfAssessment {\n  id                    String            @id @default(uuid())\n  submissionId          String            @unique\n  submission            CompassSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)\n  dataMaturity          Int\n  automationExperience  Int\n  changeReadiness       Int\n  calculatedScore       Decimal?          @db.Decimal(5, 2)\n}\n\nmodel CompassReport {\n  id                  String             @id @default(uuid())\n  submissionId        String             @unique\n  submission          CompassSubmission  @relation(fields: [submissionId], references: [id], onDelete: Cascade)\n  selfAssessmentScore Decimal            @db.Decimal(5, 2)\n  researchScore       Decimal            @db.Decimal(5, 2)\n  overallScore        Decimal            @db.Decimal(5, 2)\n  readinessLevel      String\n  htmlContent         String\n  researchFindings    Json?\n  synthesisOutput     Json?\n  citations           Json               @default(\"[]\")\n  createdAt           DateTime           @default(now())\n  \n  priorities          BusinessPriority[]\n  roadmapPhases       RoadmapPhase[]\n  antiRecommendations AntiRecommendation[]\n}\n\nmodel BusinessPriority {\n  id                     String        @id @default(uuid())\n  reportId               String\n  report                 CompassReport @relation(fields: [reportId], references: [id], onDelete: Cascade)\n  rank                   Int\n  problemName            String\n  problemDescription     String\n  solutionName           String\n  solutionVendor         String\n  solutionApproachType   String\n  solutionDescription    String\n  solutionWhyFits        String\n  solutionFeatures       Json          @default(\"[]\")\n  solutionIntegrations   Json          @default(\"[]\")\n  pricingModel           String?\n  pricingMonthly         String?\n  pricingImplementation  String?\n  expectedImpact         String?\n  complexity             String?\n  timeToValue            String?\n  \n  @@unique([reportId, rank])\n}\n\nmodel RoadmapPhase {\n  id                   String        @id @default(uuid())\n  reportId             String\n  report               CompassReport @relation(fields: [reportId], references: [id], onDelete: Cascade)\n  month                Int\n  focus                String\n  specificDeliverables Json          @default(\"[]\")\n  toolsToImplement     Json          @default(\"[]\")\n  budget               String?\n  decisionGate         String?\n  \n  @@unique([reportId, month])\n}\n\nmodel AntiRecommendation {\n  id              String        @id @default(uuid())\n  reportId        String\n  report          CompassReport @relation(fields: [reportId], references: [id], onDelete: Cascade)\n  name            String\n  vendorExamples  Json          @default(\"[]\")\n  whyTempting     String?\n  whyWrongForThem String?\n  costOfMistake   String?\n}\n\nmodel QAValidation {\n  id                  String            @id @default(uuid())\n  submissionId        String            @unique\n  submission          CompassSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)\n  overallPassed       Boolean\n  call1Passed         Boolean\n  call1Score          Int\n  call2Passed         Boolean\n  call2Score          Int\n  crossCallPassed     Boolean\n  crossCallScore      Int\n  researchUsedPercent Decimal           @db.Decimal(5, 2)\n  verifiedSourceCount Int\n  uniqueDomainCount   Int\n  notFoundRatio       Decimal           @db.Decimal(5, 4)\n  hasCompanyData      Boolean\n  hasIndustryStats    Boolean\n  issues              Json              @default(\"[]\")\n  call1Tokens         Int\n  call2Tokens         Int\n  totalDurationMs     Int\n  createdAt           DateTime          @default(now())\n}\n\nmodel AuditLog {\n  id           String             @id @default(uuid())\n  submissionId String?\n  submission   CompassSubmission? @relation(fields: [submissionId], references: [id], onDelete: SetNull)\n  eventType    String\n  eventData    Json\n  createdAt    DateTime           @default(now())\n  \n  @@index([eventType, createdAt])\n  @@index([submissionId])\n}"
+    },
+
+    "migrations": {
+      "initial": "npx prisma migrate dev --name init",
+      "production": "npx prisma migrate deploy",
+      "generate_client": "npx prisma generate"
+    }
+  },
+
+  "environment_variables": {
+    "instructions": "Add these to Replit Secrets (Tools > Secrets). Never commit these values.",
+
+    "required": [
+      {
+        "key": "DATABASE_URL",
+        "description": "PostgreSQL connection string (auto-provided by Replit PostgreSQL)",
+        "example": "postgresql://user:password@host:5432/database?sslmode=require",
+        "source": "Replit PostgreSQL addon"
+      },
+      {
+        "key": "ANTHROPIC_API_KEY",
+        "description": "Claude API key for AI generation and web search",
+        "example": "sk-ant-api03-xxxxxxxxxxxx",
+        "source": "https://console.anthropic.com/",
+        "required_capabilities": ["messages", "web_search"]
+      },
+      {
+        "key": "STRIPE_SECRET_KEY",
+        "description": "Stripe secret API key for payment processing",
+        "example": "sk_live_xxxxxxxxxx (or sk_test_xxx for testing)",
+        "source": "https://dashboard.stripe.com/apikeys"
+      },
+      {
+        "key": "STRIPE_PUBLISHABLE_KEY",
+        "description": "Stripe publishable key for frontend Elements",
+        "example": "pk_live_xxxxxxxxxx (or pk_test_xxx for testing)",
+        "source": "https://dashboard.stripe.com/apikeys",
+        "note": "This is used in frontend, exposed to browser"
+      },
+      {
+        "key": "STRIPE_WEBHOOK_SECRET",
+        "description": "Stripe webhook signing secret for event verification",
+        "example": "whsec_xxxxxxxxxx",
+        "source": "https://dashboard.stripe.com/webhooks"
+      }
+    ],
+
+    "optional": [
+      {
+        "key": "SMTP_HOST",
+        "description": "SMTP server hostname for email delivery",
+        "default": "smtp.gmail.com",
+        "example": "smtp.gmail.com"
+      },
+      {
+        "key": "SMTP_PORT",
+        "description": "SMTP server port",
+        "default": "587",
+        "example": "587"
+      },
+      {
+        "key": "SMTP_USER",
+        "description": "SMTP authentication username (usually email address)",
+        "example": "reports@yourcompany.com"
+      },
+      {
+        "key": "SMTP_PASSWORD",
+        "description": "SMTP authentication password (use App Password for Gmail)",
+        "example": "xxxx xxxx xxxx xxxx",
+        "note": "For Gmail, create App Password at https://myaccount.google.com/apppasswords"
+      },
+      {
+        "key": "REDIS_URL",
+        "description": "Redis connection for job queue (Replit KeyValue or external)",
+        "default": "Uses Replit KeyValue store if not set",
+        "example": "redis://default:password@host:6379"
+      },
+      {
+        "key": "GOOGLE_SHEETS_CREDENTIALS",
+        "description": "Base64-encoded Google Service Account JSON for QA logging",
+        "example": "eyJ0eXBlIjoic2VydmljZV9hY2NvdW50Ii4uLn0=",
+        "note": "Optional - QA metrics can use PostgreSQL instead"
+      },
+      {
+        "key": "GOOGLE_SHEETS_QA_LOG_ID",
+        "description": "Google Sheets spreadsheet ID for QA logging",
+        "example": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+      }
+    ],
+
+    "configuration": [
+      {
+        "key": "NODE_ENV",
+        "description": "Environment mode",
+        "default": "production",
+        "values": ["development", "production", "test"]
+      },
+      {
+        "key": "PORT",
+        "description": "Server port (Replit sets this automatically)",
+        "default": "3000"
+      },
+      {
+        "key": "CLAUDE_MODEL",
+        "description": "Claude model for AI generation",
+        "default": "claude-sonnet-4-20250514",
+        "options": ["claude-sonnet-4-20250514", "claude-opus-4-20250514"]
+      },
+      {
+        "key": "MAX_WEB_SEARCHES",
+        "description": "Maximum web searches per report",
+        "default": "15",
+        "type": "integer"
+      },
+      {
+        "key": "COMPASS_PRICE_CENTS",
+        "description": "Report price in cents",
+        "default": "49700",
+        "note": "49700 = $497.00"
+      },
+      {
+        "key": "COMPASS_TEST_MODE",
+        "description": "Bypass payment in test mode",
+        "default": "false",
+        "values": ["true", "false"]
+      },
+      {
+        "key": "QA_MIN_PASS_SCORE",
+        "description": "Minimum QA score to pass (1-10)",
+        "default": "7"
+      },
+      {
+        "key": "MIN_VERIFIED_SOURCES",
+        "description": "Minimum verified URLs required by quality gate",
+        "default": "10"
+      },
+      {
+        "key": "MIN_UNIQUE_DOMAINS",
+        "description": "Minimum unique domains in citations",
+        "default": "3"
+      },
+      {
+        "key": "MAX_NOT_FOUND_RATIO",
+        "description": "Maximum allowed NOT_FOUND ratio (0.0-1.0)",
+        "default": "0.30"
+      },
+      {
+        "key": "LOG_LEVEL",
+        "description": "Logging verbosity",
+        "default": "info",
+        "values": ["debug", "info", "warn", "error"]
+      }
+    ]
+  },
+
+  "expansion_points": {
+    "description": "These are the specific locations where new Compass modules should be integrated to maintain extensibility.",
+
+    "new_assessment_types": {
+      "purpose": "Add new assessment types beyond AI Readiness (e.g., Digital Maturity, Cloud Readiness)",
+      "integration_points": [
+        {
+          "location": "backend/src/services/",
+          "action": "Create new service file (e.g., CloudReadinessService.ts)",
+          "pattern": "Follow CompassService.ts structure with two-call architecture"
+        },
+        {
+          "location": "backend/src/routes/",
+          "action": "Add new route file (e.g., cloud-readiness.ts)",
+          "pattern": "Follow compass.ts pattern with /api/cloud-readiness/* endpoints"
+        },
+        {
+          "location": "frontend/src/pages/",
+          "action": "Create new assessment page (e.g., CloudReadinessAssessment.tsx)",
+          "pattern": "Follow Assessment.tsx wizard pattern"
+        },
+        {
+          "location": "prisma/schema.prisma",
+          "action": "Add new models or extend existing with discriminator field",
+          "note": "Consider using assessmentType field on CompassSubmission for polymorphism"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/types/assessment.ts",
+        "interface": "interface AssessmentEngine {\n  process(request: AssessmentRequest): Promise<AssessmentResult>;\n  validateQuality(result: AssessmentResult): Promise<QAResult>;\n  generateReport(result: AssessmentResult): Promise<string>;\n}"
+      }
+    },
+
+    "new_validators": {
+      "purpose": "Add new QA validation checks (e.g., plagiarism detection, tone analysis)",
+      "integration_points": [
+        {
+          "location": "backend/src/validators/",
+          "action": "Create new validator file implementing ValidatorInterface",
+          "example": "PlagiarismValidator.ts, ToneValidator.ts"
+        },
+        {
+          "location": "backend/src/validators/index.ts",
+          "action": "Export and register new validator in VALIDATOR_REGISTRY",
+          "code_snippet": "export const VALIDATOR_REGISTRY: Validator[] = [\n  new Call1Validator(),\n  new Call2Validator(),\n  new CrossCallValidator(),\n  new PlagiarismValidator(), // NEW\n  new ToneValidator(),       // NEW\n];"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/validators/base.ts",
+        "interface": "interface Validator {\n  name: string;\n  validate(input: ValidationInput): Promise<ValidationResult>;\n  isApplicable(context: ValidationContext): boolean;\n}"
+      }
+    },
+
+    "new_ai_providers": {
+      "purpose": "Add alternative AI providers (e.g., OpenAI, Google Gemini)",
+      "integration_points": [
+        {
+          "location": "backend/src/lib/",
+          "action": "Create new provider file (e.g., openai.ts, gemini.ts)",
+          "pattern": "Follow claude.ts interface"
+        },
+        {
+          "location": "backend/src/config/ai.ts",
+          "action": "Add provider selection logic based on env var",
+          "code_snippet": "export function getAIProvider(): AIProvider {\n  switch (process.env.AI_PROVIDER) {\n    case 'openai': return new OpenAIProvider();\n    case 'gemini': return new GeminiProvider();\n    default: return new ClaudeProvider();\n  }\n}"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/lib/ai-provider.ts",
+        "interface": "interface AIProvider {\n  generateJSON(prompt: string, systemPrompt: string, options?: GenerateOptions): Promise<JSONResponse>;\n  generateJSONWithWebSearch(prompt: string, options?: WebSearchOptions): Promise<WebSearchResponse>;\n  getModelInfo(): ModelInfo;\n}"
+      }
+    },
+
+    "new_payment_providers": {
+      "purpose": "Add alternative payment providers (e.g., PayPal, Paddle)",
+      "integration_points": [
+        {
+          "location": "backend/src/services/payments/",
+          "action": "Create provider-specific service (e.g., PayPalService.ts)",
+          "pattern": "Follow StripeService.ts with authorize/capture/cancel pattern"
+        },
+        {
+          "location": "frontend/src/components/payment/",
+          "action": "Create provider-specific payment component",
+          "pattern": "Follow StripePaymentForm.tsx"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/services/payments/PaymentProvider.ts",
+        "interface": "interface PaymentProvider {\n  createPaymentIntent(amount: number, email: string): Promise<PaymentIntent>;\n  capturePayment(intentId: string): Promise<PaymentResult>;\n  cancelPayment(intentId: string): Promise<PaymentResult>;\n  handleWebhook(payload: Buffer, signature: string): Promise<WebhookEvent>;\n}"
+      }
+    },
+
+    "new_delivery_channels": {
+      "purpose": "Add new report delivery methods (e.g., Slack, SMS, PDF download)",
+      "integration_points": [
+        {
+          "location": "backend/src/services/delivery/",
+          "action": "Create new delivery service (e.g., SlackDeliveryService.ts)",
+          "pattern": "Follow EmailService.ts"
+        },
+        {
+          "location": "frontend/src/pages/Report.tsx",
+          "action": "Add delivery method selector",
+          "pattern": "Add buttons for each delivery channel"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/services/delivery/DeliveryChannel.ts",
+        "interface": "interface DeliveryChannel {\n  name: string;\n  deliver(report: CompassReport, recipient: DeliveryRecipient): Promise<DeliveryResult>;\n  validateRecipient(recipient: DeliveryRecipient): boolean;\n}"
+      }
+    },
+
+    "new_report_templates": {
+      "purpose": "Add new report formats (e.g., Executive Summary, Technical Deep-Dive)",
+      "integration_points": [
+        {
+          "location": "backend/src/templates/",
+          "action": "Create new template directory (e.g., executive-summary/)",
+          "pattern": "Follow compass-report/ structure"
+        },
+        {
+          "location": "backend/src/services/ReportGeneratorService.ts",
+          "action": "Add template selection logic",
+          "code_snippet": "generateReport(data: ReportData, template: ReportTemplate = 'standard'): Promise<string>"
+        }
+      ],
+      "interface_contract": {
+        "file": "backend/src/types/report.ts",
+        "interface": "interface ReportTemplate {\n  id: string;\n  name: string;\n  render(data: ReportData): Promise<string>;\n  supportedFormats: ('html' | 'pdf' | 'docx')[];\n}"
+      }
+    },
+
+    "plugin_architecture": {
+      "purpose": "Future-proof plugin system for third-party extensions",
+      "design": {
+        "plugin_interface": {
+          "file": "backend/src/plugins/PluginInterface.ts",
+          "interface": "interface CompassPlugin {\n  id: string;\n  name: string;\n  version: string;\n  hooks: {\n    onSubmission?: (submission: CompassSubmission) => Promise<void>;\n    onResearchComplete?: (research: ResearchFindings) => Promise<void>;\n    onSynthesisComplete?: (synthesis: SynthesisOutput) => Promise<void>;\n    onReportGenerated?: (report: CompassReport) => Promise<void>;\n    onPaymentCaptured?: (payment: PaymentResult) => Promise<void>;\n  };\n  init(): Promise<void>;\n  destroy(): Promise<void>;\n}"
+        },
+        "plugin_loader": {
+          "file": "backend/src/plugins/PluginLoader.ts",
+          "description": "Dynamically loads plugins from plugins/ directory"
+        },
+        "hook_execution": {
+          "file": "backend/src/plugins/HookExecutor.ts",
+          "description": "Executes registered hooks at appropriate lifecycle points"
+        }
+      },
+      "example_plugins": [
+        "CRM Integration (Salesforce, HubSpot)",
+        "Analytics (Mixpanel, Amplitude)",
+        "Notification (Slack, Teams)",
+        "Compliance (GDPR data handling)"
+      ]
+    }
+  },
+
+  "implementation_sequence": {
+    "phase_1_foundation": {
+      "duration": "Week 1-2",
+      "tasks": [
+        "Initialize Replit project with monorepo structure",
+        "Set up PostgreSQL and run Prisma migrations",
+        "Create Express.js backend with health check endpoint",
+        "Create React frontend with Vite",
+        "Configure environment variables in Replit Secrets",
+        "Implement basic API client in frontend"
+      ],
+      "deliverables": ["Running full-stack app with database connection"]
+    },
+    "phase_2_core_flow": {
+      "duration": "Week 3-4",
+      "tasks": [
+        "Implement ScoringService (self-assessment calculation)",
+        "Implement ResearchService with Claude web search",
+        "Implement SynthesisService with strategic synthesis",
+        "Implement QualityGateService with URL verification",
+        "Build AssessmentWizard component (multi-step form)",
+        "Integrate Stripe payment flow (manual capture)"
+      ],
+      "deliverables": ["End-to-end submission flow without email delivery"]
+    },
+    "phase_3_validation": {
+      "duration": "Week 5",
+      "tasks": [
+        "Implement Call1Validator, Call2Validator, CrossCallValidator",
+        "Implement CompassService orchestration with QA pipeline",
+        "Add background job processing with BullMQ",
+        "Implement ProcessingStatus component with polling",
+        "Add comprehensive error handling and logging"
+      ],
+      "deliverables": ["Full QA pipeline with validation"]
+    },
+    "phase_4_delivery": {
+      "duration": "Week 6",
+      "tasks": [
+        "Implement ReportGeneratorService with HTML templates",
+        "Implement EmailService for report delivery",
+        "Build ReportViewer component with PDF export",
+        "Add Stripe webhook handlers",
+        "Implement AuditLog for tracking"
+      ],
+      "deliverables": ["Complete end-to-end product"]
+    },
+    "phase_5_polish": {
+      "duration": "Week 7-8",
+      "tasks": [
+        "Add rate limiting and security headers",
+        "Implement retry logic for external APIs",
+        "Add comprehensive test suite",
+        "Performance optimization (caching, query optimization)",
+        "Documentation and API spec generation"
+      ],
+      "deliverables": ["Production-ready deployment"]
+    }
+  },
+
+  "testing_strategy": {
+    "unit_tests": {
+      "framework": "Vitest",
+      "location": "packages/backend/src/**/*.test.ts",
+      "coverage_target": "80%",
+      "key_tests": [
+        "ScoringService.calculateScore()",
+        "QualityGateService.validate()",
+        "All validators"
+      ]
+    },
+    "integration_tests": {
+      "framework": "Vitest + Supertest",
+      "location": "packages/backend/tests/integration/",
+      "key_tests": [
+        "Full submission flow",
+        "Payment capture/cancel flow",
+        "Webhook handling"
+      ]
+    },
+    "e2e_tests": {
+      "framework": "Playwright",
+      "location": "packages/frontend/tests/e2e/",
+      "key_tests": [
+        "Complete assessment wizard flow",
+        "Payment flow with Stripe test cards",
+        "Report viewing and download"
+      ]
+    }
+  },
+
+  "monitoring_and_observability": {
+    "logging": {
+      "library": "Pino",
+      "format": "JSON",
+      "fields": ["timestamp", "level", "runId", "event", "duration", "error"]
+    },
+    "metrics": {
+      "approach": "Custom metrics to PostgreSQL or external service",
+      "key_metrics": [
+        "submissions_total",
+        "submissions_by_status",
+        "qa_pass_rate",
+        "avg_processing_time_ms",
+        "payment_capture_rate",
+        "email_delivery_rate"
+      ]
+    },
+    "error_tracking": {
+      "approach": "Structured error logging with stack traces",
+      "critical_errors": [
+        "Payment capture failures",
+        "Claude API errors",
+        "Database connection failures"
+      ]
+    }
+  }
+}
